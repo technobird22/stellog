@@ -1,4 +1,4 @@
-package com.example.stellog;
+package com.example.stellog.data.model;
 
 /**
  * 习惯活动的数据模型。

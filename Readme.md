@@ -1,29 +1,106 @@
-# Stellog 数据与函数说明
+# Stellog 项目说明
 
-本文档记录项目中当前较重要的数据结构、页面间传参格式，以及核心函数的输入、输出和作用。当前项目数据主要保存在内存中，尚未接入数据库。
+Stellog 是一个习惯打卡 Android 应用。当前版本主要实现了活动创建、卡片展示、今日打卡、取消打卡、记录详细数量、本周打卡圆点展示等功能。
 
-## 数据结构
+当前项目还没有接入数据库，数据仍然保存在内存中。为了后续更容易接入 Room / SQLite，本项目已经按简单分层整理为 UI 层、数据模型层、Repository 数据操作层和工具层。
+
+## 项目结构
+
+```text
+app/src/main/java/com/example/stellog/
+├─ ui/
+│  ├─ MainActivity.java
+│  ├─ CreateHabitActivity.java
+│  └─ RecordDetailActivity.java
+│
+├─ data/
+│  ├─ model/
+│  │  ├─ Habit.java
+│  │  └─ CheckInRecord.java
+│  │
+│  └─ repository/
+│     └─ HabitRepository.java
+│
+└─ util/
+   └─ DateUtils.java
+```
+
+## 分层说明
+
+### ui
+
+`ui` 包负责页面展示、按钮点击、页面跳转和刷新界面。
+
+当前包含：
+
+| 文件 | 作用 |
+| --- | --- |
+| `MainActivity.java` | 主页面，展示活动卡片，处理打卡、取消打卡、记录详细入口。 |
+| `CreateHabitActivity.java` | 创建活动页面，输入活动名称和单位。 |
+| `RecordDetailActivity.java` | 记录详细页面，输入今天完成的数量。 |
+
+### data.model
+
+`data.model` 包负责保存核心数据结构。
+
+当前包含：
+
+| 文件 | 作用 |
+| --- | --- |
+| `Habit.java` | 活动数据模型。 |
+| `CheckInRecord.java` | 单次打卡记录数据模型。 |
+
+### data.repository
+
+`data.repository` 包负责数据操作和业务逻辑。
+
+当前包含：
+
+| 文件 | 作用 |
+| --- | --- |
+| `HabitRepository.java` | 管理内存中的活动列表和打卡记录列表，提供创建活动、打卡、取消打卡、更新记录详细等方法。 |
+
+目前 Repository 内部仍然使用：
+
+```java
+private final List<Habit> habits = new ArrayList<>();
+private final List<CheckInRecord> records = new ArrayList<>();
+```
+
+以后如果接入 Room / SQLite，可以优先替换 Repository 内部实现，UI 层可以尽量少改。
+
+### util
+
+`util` 包负责通用工具逻辑。
+
+当前包含：
+
+| 文件 | 作用 |
+| --- | --- |
+| `DateUtils.java` | 生成本周日期列表、生成今日日期字符串。 |
+
+## 核心数据结构
 
 ### Habit
 
-文件：`app/src/main/java/com/example/stellog/Habit.java`
+文件：`app/src/main/java/com/example/stellog/data/model/Habit.java`
 
-`Habit` 表示一个习惯活动，也就是主页面中的一张活动卡片。
+`Habit` 表示一个习惯活动，也对应主页面中的一张活动卡片。
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
 | `id` | `long` | 活动自身 id，用于和打卡记录关联。 |
 | `userId` | `long` | 创建者 id。当前默认是 `0`。 |
 | `name` | `String` | 活动名称，例如 `run`、`看书`。 |
-| `unit` | `String` | 活动计量单位，例如 `km`、`分钟`。允许为空字符串。 |
-| `recordNum` | `int` | 已打卡次数。每次今日打卡加 1，取消今日打卡减 1。 |
+| `unit` | `String` | 活动计量单位，例如 `km`、`分钟`，允许为空字符串。 |
+| `recordNum` | `int` | 已打卡次数。今日打卡加 1，取消今日打卡减 1。 |
 | `reminderEnabled` | `boolean` | 是否开启提醒。当前创建时默认为 `false`。 |
 | `sortWeight` | `int` | 排序权重。当前创建时默认为 `1`。 |
-| `totalValue` | `long` | 累计完成数量，由记录详细中的 `record.value` 累加得到。 |
+| `totalValue` | `long` | 累计完成数量，由记录详细中的 `record.value` 汇总得到。 |
 | `createdAt` | `long` | 创建时间，格式为 `System.currentTimeMillis()` 的毫秒时间戳。 |
 | `updatedAt` | `long` | 更新时间，打卡、取消打卡或修改记录详细时更新。 |
 
-构造函数输入格式：
+构造函数格式：
 
 ```java
 new Habit(
@@ -40,11 +117,9 @@ new Habit(
 )
 ```
 
-输出：返回一个 `Habit` 对象。
-
 ### CheckInRecord
 
-文件：`app/src/main/java/com/example/stellog/CheckInRecord.java`
+文件：`app/src/main/java/com/example/stellog/data/model/CheckInRecord.java`
 
 `CheckInRecord` 表示某个活动在某一天的一条打卡记录。
 
@@ -59,7 +134,7 @@ new Habit(
 | `createdAt` | `long` | 创建时间，毫秒时间戳。 |
 | `updatedAt` | `long` | 更新时间，修改记录详细时更新。 |
 
-构造函数输入格式：
+构造函数格式：
 
 ```java
 new CheckInRecord(
@@ -74,13 +149,9 @@ new CheckInRecord(
 )
 ```
 
-输出：返回一个 `CheckInRecord` 对象。
-
 ### RecordDate
 
-文件：`app/src/main/java/com/example/stellog/CheckInRecord.java`
-
-`RecordDate` 是 `CheckInRecord` 的内部类，用于只记录年月日，避免直接比较毫秒时间戳时受到时分秒影响。
+`RecordDate` 是 `CheckInRecord` 的内部类，只记录年月日，避免直接比较毫秒时间戳时受到时分秒影响。
 
 | 字段 | 类型 | 作用 |
 | --- | --- | --- |
@@ -95,7 +166,7 @@ boolean isSameDay(RecordDate other)
 ```
 
 输入：另一个 `RecordDate`。  
-输出：`boolean`。年月日完全相同返回 `true`，否则返回 `false`。
+输出：年月日相同返回 `true`，否则返回 `false`。
 
 ```java
 static RecordDate today()
@@ -111,6 +182,228 @@ static RecordDate fromCalendar(Calendar calendar)
 输入：Java 的 `Calendar` 对象。  
 输出：转换后的 `RecordDate`，其中月份会从 `Calendar` 的 `0-11` 转为正常的 `1-12`。
 
+## Repository 说明
+
+文件：`app/src/main/java/com/example/stellog/data/repository/HabitRepository.java`
+
+`HabitRepository` 负责管理活动和打卡记录。`MainActivity` 不再直接维护 `records`，而是通过 Repository 查询和更新数据。
+
+### 核心数据
+
+| 变量 | 类型 | 作用 |
+| --- | --- | --- |
+| `DEFAULT_CHECK_IN_VALUE` | `long` | 普通打卡时 `CheckInRecord.value` 的默认值，目前是 `0L`。 |
+| `habits` | `List<Habit>` | 内存中的活动列表。 |
+| `records` | `List<CheckInRecord>` | 内存中的打卡记录列表。 |
+
+### 核心函数
+
+```java
+public List<Habit> getHabits()
+```
+
+输出：当前内存中的活动列表。  
+作用：供 UI 层绑定卡片列表。
+
+```java
+public Habit addHabit(String name, String unit)
+```
+
+输入：活动名称和单位。  
+输出：新创建的 `Habit`。  
+作用：创建活动并加入 `habits`。
+
+```java
+public CheckInRecord getTodayRecord(long habitId)
+```
+
+输入：活动 id。  
+输出：如果该活动今天已有打卡记录，返回对应 `CheckInRecord`；否则返回 `null`。  
+作用：判断今日是否打卡。
+
+```java
+public boolean checkInToday(Habit habit)
+```
+
+输入：要打卡的活动。  
+输出：成功新增今日打卡返回 `true`；如果今天已打卡返回 `false`。  
+作用：创建今日 `CheckInRecord`，并更新 `habit.recordNum`、`habit.totalValue`、`habit.updatedAt`。
+
+```java
+public boolean cancelTodayCheckIn(Habit habit)
+```
+
+输入：要取消今日打卡的活动。  
+输出：成功取消返回 `true`；如果今天没有打卡记录返回 `false`。  
+作用：删除今日 `CheckInRecord`，并回退 `habit.recordNum` 和 `habit.totalValue`。
+
+```java
+public boolean hasRecordOnDate(long habitId, CheckInRecord.RecordDate date)
+```
+
+输入：活动 id 和指定日期。  
+输出：该活动在指定日期存在打卡记录返回 `true`，否则返回 `false`。  
+作用：用于渲染本周 7 个打卡圆点。
+
+```java
+public boolean applyRecordDetailValue(long habitId, long newValue)
+```
+
+输入：活动 id 和记录详细页面返回的新完成数量。  
+输出：成功更新返回 `true`；找不到活动、找不到今日记录或值未变化时返回 `false`。  
+作用：更新今日 `record.value`，并按差值更新 `habit.totalValue`。
+
+累计值更新方式：
+
+```java
+habit.totalValue = habit.totalValue - oldValue + newValue;
+```
+
+这样可以避免用户第二次修改记录详细时重复累计。
+
+```java
+public int findHabitPosition(long habitId)
+```
+
+输入：活动 id。  
+输出：活动在 `habits` 列表中的位置；找不到返回 `-1`。  
+作用：供 UI 层刷新指定卡片。
+
+## MainActivity 说明
+
+文件：`app/src/main/java/com/example/stellog/ui/MainActivity.java`
+
+`MainActivity` 现在主要负责 UI 逻辑：
+
+- 初始化 `ViewPager2`；
+- 打开创建活动页面；
+- 打开记录详细页面；
+- 调用 `HabitRepository` 完成数据操作；
+- 根据 Repository 返回结果刷新卡片；
+- 绑定卡片 UI。
+
+### 核心变量
+
+| 变量 | 类型 | 作用 |
+| --- | --- | --- |
+| `DEFAULT_RECORD_VALUE` | `long` | 接收记录详细返回值时使用的默认值，目前是 `0L`。 |
+| `habitRepository` | `HabitRepository` | 活动数据仓库。 |
+| `habits` | `List<Habit>` | 来自 `habitRepository.getHabits()` 的活动列表。 |
+| `habitPager` | `ViewPager2` | 主页面卡片滑动组件。 |
+| `habitAdapter` | `HabitPagerAdapter` | 将 `habits` 渲染为卡片页面的适配器。 |
+| `pageIndicatorText` | `TextView` | 右上角页码文本。 |
+| `currentHabitPosition` | `int` | 当前展示的卡片序号。 |
+
+### 核心函数
+
+```java
+private void setupHabitPager()
+```
+
+输入：无。  
+输出：无。  
+作用：初始化 `ViewPager2`，绑定 `HabitPagerAdapter`，设置预渲染、左右 padding、卡片缩放/透明度变换，并监听当前页变化。
+
+```java
+private void addHabit(String name, String unit)
+```
+
+输入：活动名称和单位。  
+输出：无。  
+作用：调用 `habitRepository.addHabit(name, unit)` 创建活动，刷新卡片列表，并滑动到新活动。
+
+```java
+private void updateHeader(int position)
+```
+
+输入：当前卡片位置 `position`，从 `0` 开始。  
+输出：无。  
+作用：更新右上角页码，例如 `1 / 3`。
+
+```java
+private CheckInRecord getTodayRecord(long habitId)
+```
+
+输入：活动 id。  
+输出：今日打卡记录或 `null`。  
+作用：转调 `habitRepository.getTodayRecord(habitId)`。
+
+```java
+private void checkInToday(Habit habit)
+```
+
+输入：当前活动。  
+输出：无。  
+作用：调用 `habitRepository.checkInToday(habit)`；如果成功打卡，则刷新当前卡片。
+
+```java
+private void cancelTodayCheckIn(Habit habit)
+```
+
+输入：当前活动。  
+输出：无。  
+作用：调用 `habitRepository.cancelTodayCheckIn(habit)`；如果成功取消，则刷新当前卡片。
+
+```java
+private boolean hasRecordOnDate(long habitId, CheckInRecord.RecordDate date)
+```
+
+输入：活动 id 和日期。  
+输出：该日期是否打卡。  
+作用：转调 `habitRepository.hasRecordOnDate(habitId, date)`。
+
+```java
+private List<CheckInRecord.RecordDate> getCurrentWeekDates()
+```
+
+输入：无。  
+输出：本周周一到周日的 7 个日期。  
+作用：转调 `DateUtils.getCurrentWeekDates()`。
+
+```java
+private String getTodayDateString()
+```
+
+输入：无。  
+输出：今日日期字符串，格式为 `yyyy-MM-dd`。  
+作用：转调 `DateUtils.getTodayDateString()`。
+
+```java
+private void showRecordDetailPage(Habit habit)
+```
+
+输入：当前活动。  
+输出：无。  
+作用：如果今天已经打卡，则打开 `RecordDetailActivity`，并传入活动 id、名称、单位和今日 record 的 value。
+
+```java
+private void applyRecordDetailValue(long habitId, long newValue)
+```
+
+输入：活动 id 和新完成数量。  
+输出：无。  
+作用：调用 `habitRepository.applyRecordDetailValue(habitId, newValue)`；如果更新成功，则刷新对应卡片。
+
+## DateUtils 说明
+
+文件：`app/src/main/java/com/example/stellog/util/DateUtils.java`
+
+```java
+public static List<CheckInRecord.RecordDate> getCurrentWeekDates()
+```
+
+输入：无。  
+输出：本周周一到周日的 7 个 `RecordDate`。  
+作用：供卡片上的星期圆点绑定打卡状态。
+
+```java
+public static String getTodayDateString()
+```
+
+输入：无。  
+输出：今日日期字符串，格式为 `yyyy-MM-dd`。  
+作用：供卡片显示 `今天 | yyyy-MM-dd`。
+
 ## 页面间传参格式
 
 ### 创建活动页面返回 MainActivity
@@ -118,29 +411,15 @@ static RecordDate fromCalendar(Calendar calendar)
 发送方：`CreateHabitActivity`  
 接收方：`MainActivity.createHabitLauncher`
 
-返回结果：
-
 | key | 类型 | 作用 |
 | --- | --- | --- |
 | `habit_name` | `String` | 新活动名称，不能为空。 |
 | `habit_unit` | `String` | 新活动单位，可以为空。 |
 
-保存时返回格式：
-
-```java
-Intent resultIntent = new Intent();
-resultIntent.putExtra("habit_name", name);
-resultIntent.putExtra("habit_unit", unit);
-setResult(RESULT_OK, resultIntent);
-finish();
-```
-
 ### 记录详细页面输入参数
 
 发送方：`MainActivity.showRecordDetailPage()`  
 接收方：`RecordDetailActivity`
-
-输入参数：
 
 | key | 类型 | 作用 |
 | --- | --- | --- |
@@ -154,297 +433,12 @@ finish();
 发送方：`RecordDetailActivity.saveRecordValue()`  
 接收方：`MainActivity.recordDetailLauncher`
 
-返回结果：
-
 | key | 类型 | 作用 |
 | --- | --- | --- |
 | `habit_id` | `long` | 要更新的活动 id。 |
 | `record_value` | `long` | 用户填写的新完成数量。 |
 
-保存时返回格式：
-
-```java
-Intent resultIntent = new Intent();
-resultIntent.putExtra("habit_id", habitId);
-resultIntent.putExtra("record_value", value);
-setResult(RESULT_OK, resultIntent);
-finish();
-```
-
-## MainActivity 核心数据
-
-文件：`app/src/main/java/com/example/stellog/MainActivity.java`
-
-| 变量 | 类型 | 作用 |
-| --- | --- | --- |
-| `DEFAULT_CHECK_IN_VALUE` | `long` | 普通打卡时 `CheckInRecord.value` 的默认值，目前是 `0L`。 |
-| `habits` | `List<Habit>` | 内存中的活动列表。 |
-| `records` | `List<CheckInRecord>` | 内存中的打卡记录列表。 |
-| `habitPager` | `ViewPager2` | 主页面卡片滑动组件。 |
-| `habitAdapter` | `HabitPagerAdapter` | 将 `habits` 渲染为卡片页面的适配器。 |
-| `pageIndicatorText` | `TextView` | 右上角页码文本。 |
-| `currentHabitPosition` | `int` | 当前展示的卡片序号。 |
-
-## MainActivity 核心函数
-
-### setupHabitPager
-
-```java
-private void setupHabitPager()
-```
-
-输入：无。  
-输出：无。  
-作用：初始化 `ViewPager2`，绑定 `HabitPagerAdapter`，设置预渲染、左右 padding、卡片缩放/透明度变换，并监听当前页变化。
-
-### addHabit
-
-```java
-private void addHabit(String name, String unit)
-```
-
-输入：
-
-| 参数 | 类型 | 作用 |
-| --- | --- | --- |
-| `name` | `String` | 活动名称。 |
-| `unit` | `String` | 活动单位。 |
-
-输出：无。  
-作用：根据创建活动页面返回的数据生成一个新的 `Habit`，加入 `habits`，刷新卡片列表，并滑动到新活动卡片。
-
-默认值：
-
-| 字段 | 默认值 |
-| --- | --- |
-| `userId` | `0` |
-| `recordNum` | `0` |
-| `reminderEnabled` | `false` |
-| `sortWeight` | `1` |
-| `totalValue` | `0` |
-| `createdAt` / `updatedAt` | 当前系统毫秒时间戳 |
-
-### updateHeader
-
-```java
-private void updateHeader(int position)
-```
-
-输入：当前卡片位置 `position`，从 `0` 开始。  
-输出：无。  
-作用：更新右上角页码，例如第 1 张卡片显示为 `1 / 3`。
-
-### getTodayRecord
-
-```java
-private CheckInRecord getTodayRecord(long habitId)
-```
-
-输入：活动 id。  
-输出：如果该活动今天已经打卡，返回今天的 `CheckInRecord`；否则返回 `null`。  
-作用：判断当前活动今天是否存在打卡记录。
-
-### checkInToday
-
-```java
-private void checkInToday(Habit habit)
-```
-
-输入：要打卡的 `Habit`。  
-输出：无。  
-作用：如果该活动今天还没有打卡，则创建一条新的 `CheckInRecord`，加入 `records`，并更新：
-
-| 更新对象 | 更新内容 |
-| --- | --- |
-| `records` | 新增今日 record。 |
-| `habit.recordNum` | 加 1。 |
-| `habit.totalValue` | 加上 `record.value`，当前默认加 `0`。 |
-| `habit.updatedAt` | 更新为当前毫秒时间戳。 |
-| UI | 刷新当前卡片。 |
-
-### cancelTodayCheckIn
-
-```java
-private void cancelTodayCheckIn(Habit habit)
-```
-
-输入：要取消今日打卡的 `Habit`。  
-输出：无。  
-作用：如果该活动今天有打卡记录，则删除今天的 `CheckInRecord`，并更新：
-
-| 更新对象 | 更新内容 |
-| --- | --- |
-| `records` | 删除今日 record。 |
-| `habit.recordNum` | 减 1，最低为 0。 |
-| `habit.totalValue` | 减去今日 record 的 `value`，最低为 0。 |
-| `habit.updatedAt` | 更新为当前毫秒时间戳。 |
-| UI | 刷新当前卡片。 |
-
-### generateRecordId
-
-```java
-private long generateRecordId()
-```
-
-输入：无。  
-输出：新的 record id。  
-作用：如果 `records` 为空返回 `1`，否则返回最后一条记录 id 加 1。
-
-### hasRecordOnDate
-
-```java
-private boolean hasRecordOnDate(long habitId, CheckInRecord.RecordDate date)
-```
-
-输入：活动 id 和指定日期。  
-输出：该活动在指定日期存在打卡记录返回 `true`，否则返回 `false`。  
-作用：用于渲染本周 7 个打卡圆点。
-
-### getCurrentWeekDates
-
-```java
-private List<CheckInRecord.RecordDate> getCurrentWeekDates()
-```
-
-输入：无。  
-输出：本周周一到周日的 7 个 `RecordDate`。  
-作用：生成本周日期列表，供卡片上的星期圆点绑定打卡状态。
-
-### getTodayDateString
-
-```java
-private String getTodayDateString()
-```
-
-输入：无。  
-输出：今日日期字符串，格式为 `yyyy-MM-dd`。  
-作用：卡片中显示 `今天 | yyyy-MM-dd`。
-
-### showRecordDetailPage
-
-```java
-private void showRecordDetailPage(Habit habit)
-```
-
-输入：当前活动 `Habit`。  
-输出：无。  
-作用：如果当前活动今天已经打卡，则打开 `RecordDetailActivity`，并传入活动 id、名称、单位和当前今日 record 的 value。如果今天未打卡，则提示先完成今日打卡。
-
-### applyRecordDetailValue
-
-```java
-private void applyRecordDetailValue(long habitId, long newValue)
-```
-
-输入：
-
-| 参数 | 类型 | 作用 |
-| --- | --- | --- |
-| `habitId` | `long` | 要更新的活动 id。 |
-| `newValue` | `long` | 记录详细页面返回的新完成数量。 |
-
-输出：无。  
-作用：找到对应活动和今天的 record，用新值更新 `record.value`，并按差值更新 `habit.totalValue`。
-
-计算方式：
-
-```java
-habit.totalValue = habit.totalValue - oldValue + newValue;
-```
-
-这样可以避免用户第二次修改记录详细时重复累计。
-
-### findHabitPosition
-
-```java
-private int findHabitPosition(long habitId)
-```
-
-输入：活动 id。  
-输出：活动在 `habits` 列表中的位置；如果找不到返回 `-1`。  
-作用：用于根据 `habitId` 找到要刷新的卡片位置。
-
-## Adapter 与卡片绑定
-
-### HabitPagerAdapter
-
-`HabitPagerAdapter` 继承自 `RecyclerView.Adapter`，负责将 `List<Habit>` 渲染成 `ViewPager2` 中的一张张卡片。
-
-关键函数：
-
-```java
-onCreateViewHolder(...)
-```
-
-作用：加载 `item_habit_card.xml`，创建卡片 ViewHolder。
-
-```java
-onBindViewHolder(...)
-```
-
-作用：把第 `position` 个 `Habit` 绑定到卡片控件上。
-
-```java
-getItemCount()
-```
-
-作用：返回活动数量，也就是卡片数量。
-
-### HabitViewHolder.bind
-
-```java
-void bind(Habit habit)
-```
-
-输入：当前要展示的 `Habit`。  
-输出：无。  
-作用：把活动数据和今日打卡状态绑定到卡片 UI，包括：
-
-| UI 内容 | 数据来源 |
-| --- | --- |
-| 活动名称 | `habit.name` |
-| 多少天收获 | `habit.recordNum` |
-| 此日计 | 今日 `CheckInRecord.value` |
-| 已累计 | `habit.totalValue` |
-| 今日日期 | `getTodayDateString()` |
-| 本周圆点 | `bindWeekDots(habit.id)` |
-| 打卡按钮/已打卡操作区 | 今天是否存在 `CheckInRecord` |
-
-### bindWeekDots
-
-```java
-private void bindWeekDots(long habitId)
-```
-
-输入：活动 id。  
-输出：无。  
-作用：先获取本周周一到周日的日期，再逐个判断这些日期是否有打卡记录。有记录则显示绿色圆点和对勾，否则显示空心圆。
-
-## CreateHabitActivity 核心函数
-
-### saveHabitInput
-
-```java
-private void saveHabitInput()
-```
-
-输入：无，直接读取页面中的两个 `EditText`。  
-输出：通过 `setResult(RESULT_OK, resultIntent)` 返回 `habit_name` 和 `habit_unit`。  
-作用：校验活动名称不能为空，单位可以为空；校验通过后把输入结果返回给 `MainActivity`。
-
-## RecordDetailActivity 核心函数
-
-### saveRecordValue
-
-```java
-private void saveRecordValue()
-```
-
-输入：无，直接读取页面中的 `record_value_input`。  
-输出：通过 `setResult(RESULT_OK, resultIntent)` 返回 `habit_id` 和 `record_value`。  
-作用：校验完成数量不能为空、必须是有效数字、不能小于 0；校验通过后返回给 `MainActivity` 更新 record 和 habit。
-
-## 当前数据流概览
+## 当前数据流
 
 ### 创建活动
 
@@ -455,7 +449,9 @@ setResult 返回 habit_name/habit_unit
         ↓
 MainActivity.createHabitLauncher 接收
         ↓
-addHabit(name, unit)
+MainActivity.addHabit(name, unit)
+        ↓
+HabitRepository.addHabit(name, unit)
         ↓
 habits 新增 Habit
         ↓
@@ -467,7 +463,9 @@ ViewPager2 刷新并展示新卡片
 ```text
 点击打卡按钮
         ↓
-checkInToday(habit)
+MainActivity.checkInToday(habit)
+        ↓
+HabitRepository.checkInToday(habit)
         ↓
 records 新增 CheckInRecord(value = 0)
         ↓
@@ -481,7 +479,7 @@ habit.recordNum + 1
 ```text
 点击记录详细
         ↓
-showRecordDetailPage(habit)
+MainActivity.showRecordDetailPage(habit)
         ↓
 RecordDetailActivity 输入完成数量
         ↓
@@ -489,7 +487,7 @@ setResult 返回 habit_id/record_value
         ↓
 MainActivity.recordDetailLauncher 接收
         ↓
-applyRecordDetailValue(habitId, newValue)
+HabitRepository.applyRecordDetailValue(habitId, newValue)
         ↓
 更新 todayRecord.value 和 habit.totalValue
         ↓
@@ -501,7 +499,9 @@ applyRecordDetailValue(habitId, newValue)
 ```text
 点击取消
         ↓
-cancelTodayCheckIn(habit)
+MainActivity.cancelTodayCheckIn(habit)
+        ↓
+HabitRepository.cancelTodayCheckIn(habit)
         ↓
 删除今天的 CheckInRecord
         ↓

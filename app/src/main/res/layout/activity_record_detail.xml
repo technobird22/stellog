@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#EEF1EF"
-    tools:context=".RecordDetailActivity">
+    tools:context=".ui.RecordDetailActivity">
 
     <TextView
         android:id="@+id/record_detail_title"

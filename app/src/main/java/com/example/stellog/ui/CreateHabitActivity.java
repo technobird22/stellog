@@ -1,4 +1,4 @@
-package com.example.stellog;
+package com.example.stellog.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -9,6 +9,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.example.stellog.R;
 
 /**
  * 创建活动页面。

@@ -12,13 +12,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Stellog">
         <activity
-            android:name=".RecordDetailActivity"
+            android:name=".ui.RecordDetailActivity"
             android:exported="false" />
         <activity
-            android:name=".CreateHabitActivity"
+            android:name=".ui.CreateHabitActivity"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Stellog.Starting">
             <intent-filter>

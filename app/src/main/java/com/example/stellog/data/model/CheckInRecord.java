@@ -1,4 +1,4 @@
-package com.example.stellog;
+package com.example.stellog.data.model;
 
 import java.util.Calendar;
 

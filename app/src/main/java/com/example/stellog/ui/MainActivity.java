@@ -1,4 +1,4 @@
-package com.example.stellog;
+package com.example.stellog.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -20,10 +20,13 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
-import java.util.ArrayList;
-import java.util.Calendar;
+import com.example.stellog.R;
+import com.example.stellog.data.model.CheckInRecord;
+import com.example.stellog.data.model.Habit;
+import com.example.stellog.data.repository.HabitRepository;
+import com.example.stellog.util.DateUtils;
+
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 应用主页面。
@@ -33,13 +36,13 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
 
     // 当前版本中每次打卡默认增加 1，后续可以改成用户填写的数量。
-    private static final long DEFAULT_CHECK_IN_VALUE = 0L;
+    private static final long DEFAULT_RECORD_VALUE = 0L;
 
     // 内存中的活动列表；后续接入数据库时可替换为持久化查询结果。
-    private final List<Habit> habits = new ArrayList<>();
+    private final HabitRepository habitRepository = new HabitRepository();
+    private final List<Habit> habits = habitRepository.getHabits();
 
     // 内存中的打卡记录列表；卡片上的本周状态和今日状态都由它推导。
-    private final List<CheckInRecord> records = new ArrayList<>();
 
     private ViewPager2 habitPager;
     private HabitPagerAdapter habitAdapter;
@@ -80,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         long habitId = result.getData().getLongExtra("habit_id", -1L);
-                        long newValue = result.getData().getLongExtra("record_value", DEFAULT_CHECK_IN_VALUE);
+                        long newValue = result.getData().getLongExtra("record_value", DEFAULT_RECORD_VALUE);
                         applyRecordDetailValue(habitId, newValue);
                     }
             );
@@ -146,23 +149,7 @@ public class MainActivity extends AppCompatActivity {
      * 创建一个新活动并刷新卡片列表。
      */
     private void addHabit(String name, String unit) {
-        long now = System.currentTimeMillis();
-        long newId = habits.isEmpty() ? 1L : habits.get(habits.size() - 1).id + 1L;
-
-        Habit newHabit = new Habit(
-                newId,
-                0,
-                name,
-                unit,
-                0,
-                false,
-                1,
-                0,
-                now,
-                now
-        );
-
-        habits.add(newHabit);
+        habitRepository.addHabit(name, unit);
         habitAdapter.notifyItemInserted(habits.size() - 1);
 
         // 创建完成后自动滑到新活动卡片。
@@ -185,101 +172,46 @@ public class MainActivity extends AppCompatActivity {
      * 查找指定活动今天的打卡记录。
      */
     private CheckInRecord getTodayRecord(long habitId) {
-        CheckInRecord.RecordDate today = CheckInRecord.RecordDate.today();
-        for (CheckInRecord record : records) {
-            if (record.habitId == habitId && record.date.isSameDay(today)) {
-                return record;
-            }
-        }
-        return null;
+        return habitRepository.getTodayRecord(habitId);
     }
 
     /**
      * 今日打卡：新增 record，并同步更新 Habit 上的统计字段。
      */
     private void checkInToday(Habit habit) {
-        if (getTodayRecord(habit.id) != null) {
-            return;
+        if (habitRepository.checkInToday(habit)) {
+            habitAdapter.notifyItemChanged(currentHabitPosition);
         }
-
-        long now = System.currentTimeMillis();
-        CheckInRecord record = new CheckInRecord(
-                generateRecordId(),
-                habit.id,
-                habit.userId,
-                CheckInRecord.RecordDate.today(),
-                DEFAULT_CHECK_IN_VALUE,
-                CheckInRecord.SOURCE_NORMAL,
-                now,
-                now
-        );
-
-        records.add(record);
-        habit.recordNum += 1;
-        habit.totalValue += record.value;
-        habit.updatedAt = now;
-        habitAdapter.notifyItemChanged(currentHabitPosition);
     }
 
     /**
      * 取消今日打卡：删除今天的 record，并回退 Habit 上的统计字段。
      */
     private void cancelTodayCheckIn(Habit habit) {
-        CheckInRecord todayRecord = getTodayRecord(habit.id);
-        if (todayRecord == null) {
-            return;
+        if (habitRepository.cancelTodayCheckIn(habit)) {
+            habitAdapter.notifyItemChanged(currentHabitPosition);
         }
-
-        records.remove(todayRecord);
-        habit.recordNum = Math.max(0, habit.recordNum - 1);
-        habit.totalValue = Math.max(0, habit.totalValue - todayRecord.value);
-        habit.updatedAt = System.currentTimeMillis();
-        habitAdapter.notifyItemChanged(currentHabitPosition);
-    }
-
-    private long generateRecordId() {
-        if (records.isEmpty()) {
-            return 1L;
-        }
-        return records.get(records.size() - 1).id + 1L;
     }
 
     /**
      * 判断指定活动在某一天是否已经打卡。
      */
     private boolean hasRecordOnDate(long habitId, CheckInRecord.RecordDate date) {
-        for (CheckInRecord record : records) {
-            if (record.habitId == habitId && record.date.isSameDay(date)) {
-                return true;
-            }
-        }
-        return false;
+        return habitRepository.hasRecordOnDate(habitId, date);
     }
 
     /**
      * 生成本周周一到周日的日期列表，用于绑定 7 个打卡圆点。
      */
     private List<CheckInRecord.RecordDate> getCurrentWeekDates() {
-        List<CheckInRecord.RecordDate> weekDates = new ArrayList<>();
-        Calendar calendar = Calendar.getInstance();
-        int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-        int mondayOffset = dayOfWeek == Calendar.SUNDAY ? -6 : Calendar.MONDAY - dayOfWeek;
-        calendar.add(Calendar.DAY_OF_MONTH, mondayOffset);
-
-        for (int i = 0; i < 7; i++) {
-            weekDates.add(CheckInRecord.RecordDate.fromCalendar(calendar));
-            calendar.add(Calendar.DAY_OF_MONTH, 1);
-        }
-
-        return weekDates;
+        return DateUtils.getCurrentWeekDates();
     }
 
     /**
      * 生成卡片上显示的今日日期文本，例如 2026-05-11。
      */
     private String getTodayDateString() {
-        CheckInRecord.RecordDate today = CheckInRecord.RecordDate.today();
-        return String.format(Locale.getDefault(), "%04d-%02d-%02d", today.year, today.month, today.day);
+        return DateUtils.getTodayDateString();
     }
 
     /**
@@ -302,38 +234,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyRecordDetailValue(long habitId, long newValue) {
-        int habitPosition = findHabitPosition(habitId);
-        if (habitPosition < 0) {
-            return;
+        int habitPosition = habitRepository.findHabitPosition(habitId);
+        if (habitRepository.applyRecordDetailValue(habitId, newValue)) {
+            habitAdapter.notifyItemChanged(habitPosition);
         }
-
-        Habit habit = habits.get(habitPosition);
-        CheckInRecord todayRecord = getTodayRecord(habitId);
-        if (todayRecord == null) {
-            return;
-        }
-
-        long oldValue = todayRecord.value;
-        if (newValue == oldValue) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        todayRecord.value = newValue;
-        todayRecord.updatedAt = now;
-        habit.totalValue = habit.totalValue - oldValue + newValue;
-        habit.updatedAt = now;
-
-        habitAdapter.notifyItemChanged(habitPosition);
-    }
-
-    private int findHabitPosition(long habitId) {
-        for (int i = 0; i < habits.size(); i++) {
-            if (habits.get(i).id == habitId) {
-                return i;
-            }
-        }
-        return -1;
     }
 
 
