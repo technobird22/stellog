@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private GridLayout calendarGrid;
     private TextView calendarMonthTitle;
     private TextView calendarSelectedDateTitle;
+    private TextView calendarSelectedDateHint;
     private LinearLayout calendarSelectedRecords;
     private TextView calendarCompletedCount;
     private TextView calendarPlanCount;
@@ -105,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
                     }
             );
 
-    // 接收记录详细页面返回的新数值，并同步更新今日 record 与活动累计值。
+    // 接收记录详细页面返回的新数值，并同步更新对应日期的 record 与活动累计值。
     private final ActivityResultLauncher<Intent> recordDetailLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
@@ -114,9 +115,13 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
 
-                        long habitId = result.getData().getLongExtra("habit_id", -1L);
-                        long newValue = result.getData().getLongExtra("record_value", DEFAULT_RECORD_VALUE);
-                        applyRecordDetailValue(habitId, newValue);
+                        long habitId = result.getData().getLongExtra(RecordDetailActivity.EXTRA_HABIT_ID, -1L);
+                        long newValue = result.getData().getLongExtra(
+                                RecordDetailActivity.EXTRA_RECORD_VALUE,
+                                DEFAULT_RECORD_VALUE
+                        );
+                        CheckInRecord.RecordDate recordDate = getRecordDateFromResult(result.getData());
+                        applyRecordDetailValue(habitId, recordDate, newValue);
                     }
             );
 
@@ -142,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
         calendarGrid = findViewById(R.id.calendar_grid);
         calendarMonthTitle = findViewById(R.id.calendar_month_title);
         calendarSelectedDateTitle = findViewById(R.id.calendar_selected_date_title);
+        calendarSelectedDateHint = findViewById(R.id.calendar_selected_date_hint);
         calendarSelectedRecords = findViewById(R.id.calendar_selected_records);
         calendarCompletedCount = findViewById(R.id.calendar_completed_count);
         calendarPlanCount = findViewById(R.id.calendar_plan_count);
@@ -378,6 +384,7 @@ public class MainActivity extends AppCompatActivity {
                 recordDate.month,
                 recordDate.day
         ));
+        updateSelectedDateHint();
 
         calendarSelectedRecords.removeAllViews();
         int completedCount = 0;
@@ -392,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
             if (completed) {
                 completedCount++;
             }
-            calendarSelectedRecords.addView(createSelectedDateRecordRow(habit, record));
+            calendarSelectedRecords.addView(createSelectedDateRecordRow(habit, record, recordDate));
         }
 
         int completionRate = planCount == 0 ? 0 : Math.round(completedCount * 100f / planCount);
@@ -401,17 +408,33 @@ public class MainActivity extends AppCompatActivity {
         calendarCompletionRate.setText(String.format(Locale.CHINA, "%d%%", completionRate));
     }
 
-    private TextView createSelectedDateRecordRow(Habit habit, CheckInRecord record) {
+    private void updateSelectedDateHint() {
+        Calendar selected = (Calendar) selectedDate.clone();
+        DateUtils.clearTime(selected);
+        Calendar today = Calendar.getInstance();
+        DateUtils.clearTime(today);
+
+        if (selected.before(today)) {
+            calendarSelectedDateHint.setText("总有可以弥补的遗憾。");
+        } else if (DateUtils.isSameDate(selected, today)) {
+            calendarSelectedDateHint.setText("就是现在！");
+        } else {
+            calendarSelectedDateHint.setText("前方也值得期待。");
+        }
+    }
+
+    private View createSelectedDateRecordRow(Habit habit, CheckInRecord record, CheckInRecord.RecordDate recordDate) {
         boolean completed = record != null;
-        TextView row = new TextView(this);
+        LinearLayout row = new LinearLayout(this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                DimensionUtils.dpToPx(getResources(), 52)
+                DimensionUtils.dpToPx(getResources(), 60)
         );
         if (calendarSelectedRecords.getChildCount() > 0) {
             params.topMargin = DimensionUtils.dpToPx(getResources(), 10);
         }
         row.setLayoutParams(params);
+        row.setOrientation(LinearLayout.HORIZONTAL);
         row.setBackgroundResource(R.drawable.bg_calendar_summary);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(
@@ -420,12 +443,19 @@ public class MainActivity extends AppCompatActivity {
                 DimensionUtils.dpToPx(getResources(), 16),
                 0
         );
-        row.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
-        row.setTextSize(16);
-        row.setTypeface(null, android.graphics.Typeface.BOLD);
 
+        TextView recordText = new TextView(this);
+        recordText.setLayoutParams(new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                1f
+        ));
+        recordText.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        recordText.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
+        recordText.setTextSize(16);
+        recordText.setTypeface(null, android.graphics.Typeface.BOLD);
         if (completed) {
-            row.setText(String.format(
+            recordText.setText(String.format(
                     Locale.CHINA,
                     "%s  ·  已完成 %d %s",
                     habit.name,
@@ -433,9 +463,55 @@ public class MainActivity extends AppCompatActivity {
                     habit.unit
             ));
         } else {
-            row.setText(String.format(Locale.CHINA, "%s  ·  待打卡", habit.name));
+            recordText.setText(String.format(Locale.CHINA, "%s  ·  待打卡", habit.name));
         }
+
+        TextView actionButton = createCalendarRecordActionButton(habit, record, recordDate);
+        row.addView(recordText);
+        row.addView(actionButton);
         return row;
+    }
+
+    private TextView createCalendarRecordActionButton(
+            Habit habit,
+            CheckInRecord record,
+            CheckInRecord.RecordDate recordDate
+    ) {
+        TextView button = new TextView(this);
+        button.setLayoutParams(new LinearLayout.LayoutParams(
+                DimensionUtils.dpToPx(getResources(), 86),
+                DimensionUtils.dpToPx(getResources(), 36)
+        ));
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setTextSize(13);
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+
+        if (record != null) {
+            button.setText("记录详细");
+            button.setTextColor(getColor(R.color.white));
+            button.setBackgroundResource(R.drawable.bg_create_action_primary);
+            button.setOnClickListener(v -> showRecordDetailPage(habit, record));
+            return button;
+        }
+
+        Calendar selected = (Calendar) selectedDate.clone();
+        DateUtils.clearTime(selected);
+        Calendar today = Calendar.getInstance();
+        DateUtils.clearTime(today);
+        if (selected.after(today)) {
+            button.setText("不可打卡");
+            button.setTextColor(getColor(R.color.stellog_muted));
+            button.setBackgroundResource(R.drawable.bg_create_action_secondary);
+            button.setEnabled(false);
+            return button;
+        }
+
+        boolean todaySelected = DateUtils.isSameDate(selected, today);
+        button.setText(todaySelected ? "打卡" : "补打卡");
+        button.setTextColor(getColor(R.color.white));
+        button.setBackgroundResource(R.drawable.bg_create_action_primary);
+        button.setOnClickListener(v -> checkInOnSelectedDate(habit, recordDate));
+        return button;
     }
 
     /**
@@ -514,6 +590,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void checkInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate) {
+        Calendar selected = (Calendar) selectedDate.clone();
+        DateUtils.clearTime(selected);
+        Calendar today = Calendar.getInstance();
+        DateUtils.clearTime(today);
+        if (selected.after(today)) {
+            Toast.makeText(this, "不能为未来日期打卡", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String source = DateUtils.isSameDate(selected, today)
+                ? CheckInRecord.SOURCE_NORMAL
+                : CheckInRecord.SOURCE_PATCH;
+        if (habitRepository.checkInOnDate(habit, recordDate, source)) {
+            habitAdapter.notifyDataSetChanged();
+            renderCalendarGrid();
+        }
+    }
+
     /**
      * 取消今日打卡：删除今天的 record，并回退 Habit 上的统计字段。
      */
@@ -557,18 +652,42 @@ public class MainActivity extends AppCompatActivity {
         }
 
         Intent intent = new Intent(MainActivity.this, RecordDetailActivity.class);
-        intent.putExtra("habit_id", habit.id);
-        intent.putExtra("habit_name", habit.name);
-        intent.putExtra("habit_unit", habit.unit);
-        intent.putExtra("record_value", todayRecord.value);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_NAME, habit.name);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_UNIT, habit.unit);
+        intent.putExtra(RecordDetailActivity.EXTRA_RECORD_VALUE, todayRecord.value);
         recordDetailLauncher.launch(intent);
     }
 
-    private void applyRecordDetailValue(long habitId, long newValue) {
+    private void showRecordDetailPage(Habit habit, CheckInRecord record) {
+        Intent intent = new Intent(MainActivity.this, RecordDetailActivity.class);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_NAME, habit.name);
+        intent.putExtra(RecordDetailActivity.EXTRA_HABIT_UNIT, habit.unit);
+        intent.putExtra(RecordDetailActivity.EXTRA_RECORD_VALUE, record.value);
+        intent.putExtra(RecordDetailActivity.EXTRA_RECORD_YEAR, record.date.year);
+        intent.putExtra(RecordDetailActivity.EXTRA_RECORD_MONTH, record.date.month);
+        intent.putExtra(RecordDetailActivity.EXTRA_RECORD_DAY, record.date.day);
+        recordDetailLauncher.launch(intent);
+    }
+
+    private CheckInRecord.RecordDate getRecordDateFromResult(Intent data) {
+        int year = data.getIntExtra(RecordDetailActivity.EXTRA_RECORD_YEAR, -1);
+        int month = data.getIntExtra(RecordDetailActivity.EXTRA_RECORD_MONTH, -1);
+        int day = data.getIntExtra(RecordDetailActivity.EXTRA_RECORD_DAY, -1);
+        if (year > 0 && month > 0 && day > 0) {
+            return new CheckInRecord.RecordDate(year, month, day);
+        }
+        return CheckInRecord.RecordDate.today();
+    }
+
+    private void applyRecordDetailValue(long habitId, CheckInRecord.RecordDate recordDate, long newValue) {
         int habitPosition = habitRepository.findHabitPosition(habitId);
-        if (habitRepository.applyRecordDetailValue(habitId, newValue)) {
-            habitAdapter.notifyItemChanged(habitPosition);
-            renderSelectedDateRecords();
+        if (habitRepository.applyRecordDetailValue(habitId, recordDate, newValue)) {
+            if (habitPosition >= 0) {
+                habitAdapter.notifyItemChanged(habitPosition);
+            }
+            renderCalendarGrid();
         }
     }
 

@@ -19,7 +19,18 @@ import com.example.stellog.R;
  * 只负责收集“今天完成的数量”，保存后通过 ActivityResult 返回给 MainActivity。
  */
 public class RecordDetailActivity extends AppCompatActivity {
+    public static final String EXTRA_HABIT_ID = "habit_id";
+    public static final String EXTRA_HABIT_NAME = "habit_name";
+    public static final String EXTRA_HABIT_UNIT = "habit_unit";
+    public static final String EXTRA_RECORD_VALUE = "record_value";
+    public static final String EXTRA_RECORD_YEAR = "record_year";
+    public static final String EXTRA_RECORD_MONTH = "record_month";
+    public static final String EXTRA_RECORD_DAY = "record_day";
+
     private long habitId;
+    private int recordYear = -1;
+    private int recordMonth = -1;
+    private int recordDay = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,10 +45,13 @@ public class RecordDetailActivity extends AppCompatActivity {
         });
 
         Intent intent = getIntent();
-        habitId = intent.getLongExtra("habit_id", -1L);
-        String habitName = intent.getStringExtra("habit_name");
-        String habitUnit = intent.getStringExtra("habit_unit");
-        long oldValue = intent.getLongExtra("record_value", 0L);
+        habitId = intent.getLongExtra(EXTRA_HABIT_ID, -1L);
+        String habitName = intent.getStringExtra(EXTRA_HABIT_NAME);
+        String habitUnit = intent.getStringExtra(EXTRA_HABIT_UNIT);
+        long oldValue = intent.getLongExtra(EXTRA_RECORD_VALUE, 0L);
+        recordYear = intent.getIntExtra(EXTRA_RECORD_YEAR, -1);
+        recordMonth = intent.getIntExtra(EXTRA_RECORD_MONTH, -1);
+        recordDay = intent.getIntExtra(EXTRA_RECORD_DAY, -1);
 
         TextView subtitle = findViewById(R.id.record_detail_subtitle);
         EditText valueInput = findViewById(R.id.record_value_input);
@@ -83,8 +97,13 @@ public class RecordDetailActivity extends AppCompatActivity {
         }
 
         Intent resultIntent = new Intent();
-        resultIntent.putExtra("habit_id", habitId);
-        resultIntent.putExtra("record_value", value);
+        resultIntent.putExtra(EXTRA_HABIT_ID, habitId);
+        resultIntent.putExtra(EXTRA_RECORD_VALUE, value);
+        if (recordYear > 0 && recordMonth > 0 && recordDay > 0) {
+            resultIntent.putExtra(EXTRA_RECORD_YEAR, recordYear);
+            resultIntent.putExtra(EXTRA_RECORD_MONTH, recordMonth);
+            resultIntent.putExtra(EXTRA_RECORD_DAY, recordDay);
+        }
         setResult(RESULT_OK, resultIntent);
         finish();
     }

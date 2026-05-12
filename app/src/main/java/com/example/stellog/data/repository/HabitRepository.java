@@ -73,7 +73,11 @@ public class HabitRepository {
     }
 
     public boolean checkInToday(Habit habit) {
-        if (getTodayRecord(habit.id) != null) {
+        return checkInOnDate(habit, CheckInRecord.RecordDate.today(), CheckInRecord.SOURCE_NORMAL);
+    }
+
+    public boolean checkInOnDate(Habit habit, CheckInRecord.RecordDate date, String source) {
+        if (getRecordOnDate(habit.id, date) != null) {
             return false;
         }
 
@@ -82,14 +86,14 @@ public class HabitRepository {
                 checkInRecordDao.nextId(),
                 habit.id,
                 habit.userId,
-                CheckInRecord.RecordDate.today(),
+                date,
                 DEFAULT_CHECK_IN_VALUE,
-                CheckInRecord.SOURCE_NORMAL,
+                source,
                 now,
                 now
         );
 
-        // 新增打卡记录后，同步更新 Habit 的统计字段并写回数据库。
+        // 新增打卡记录后，同步更新 Habit 统计；补打卡的 record.date 是历史日期，createdAt 仍是当前创建时间。
         checkInRecordDao.insert(CheckInRecordEntity.fromModel(record));
         habit.recordNum += 1;
         habit.totalValue += record.value;
@@ -160,28 +164,32 @@ public class HabitRepository {
     }
 
     public boolean applyRecordDetailValue(long habitId, long newValue) {
+        return applyRecordDetailValue(habitId, CheckInRecord.RecordDate.today(), newValue);
+    }
+
+    public boolean applyRecordDetailValue(long habitId, CheckInRecord.RecordDate date, long newValue) {
         int habitPosition = findHabitPosition(habitId);
         if (habitPosition < 0) {
             return false;
         }
 
         Habit habit = habits.get(habitPosition);
-        CheckInRecord todayRecord = getTodayRecord(habitId);
-        if (todayRecord == null) {
+        CheckInRecord record = getRecordOnDate(habitId, date);
+        if (record == null) {
             return false;
         }
 
-        long oldValue = todayRecord.value;
+        long oldValue = record.value;
         if (newValue == oldValue) {
             return false;
         }
 
         long now = System.currentTimeMillis();
-        todayRecord.value = newValue;
-        todayRecord.updatedAt = now;
+        record.value = newValue;
+        record.updatedAt = now;
         habit.totalValue = habit.totalValue - oldValue + newValue;
         habit.updatedAt = now;
-        checkInRecordDao.update(CheckInRecordEntity.fromModel(todayRecord));
+        checkInRecordDao.update(CheckInRecordEntity.fromModel(record));
         habitDao.update(HabitEntity.fromModel(habit));
         return true;
     }
