@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,9 +21,12 @@ import com.example.stellog.data.model.Habit;
 import com.example.stellog.data.repository.HabitRepository;
 import com.example.stellog.util.DimensionUtils;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 日历活动筛选页面。
@@ -33,8 +37,9 @@ public class HabitFilterActivity extends AppCompatActivity {
     public static final String EXTRA_SELECTED_HABIT_IDS = "selected_habit_ids";
 
     private LinearLayout optionContainer;
-    private List<Habit> habits;
+    private List<Habit> habits = new ArrayList<>();
     private final HashSet<Long> selectedHabitIds = new HashSet<>();
+    private final ExecutorService databaseExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,12 +54,32 @@ public class HabitFilterActivity extends AppCompatActivity {
         });
 
         optionContainer = findViewById(R.id.habit_filter_options);
-        habits = new HabitRepository(getApplicationContext()).getHabits();
-        loadInitialSelection();
 
         findViewById(R.id.habit_filter_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.habit_filter_confirm_button).setOnClickListener(v -> confirmSelection());
-        renderOptions();
+        loadHabitsAndRender();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        databaseExecutor.shutdown();
+    }
+
+    private void loadHabitsAndRender() {
+        databaseExecutor.execute(() -> {
+            try {
+                habits = new HabitRepository(getApplicationContext()).getHabits();
+                runOnUiThread(() -> {
+                    loadInitialSelection();
+                    renderOptions();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "娲诲姩鍔犺浇澶辫触锛岃閲嶈瘯", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     private void loadInitialSelection() {

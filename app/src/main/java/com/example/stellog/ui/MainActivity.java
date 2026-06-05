@@ -33,10 +33,13 @@ import com.example.stellog.util.DateUtils;
 import com.example.stellog.util.DimensionUtils;
 
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 应用主页面。
@@ -73,6 +76,9 @@ public class MainActivity extends AppCompatActivity {
     private final Calendar visibleMonth = Calendar.getInstance();
     private Calendar selectedDate = Calendar.getInstance();
     private final HashSet<Long> selectedCalendarHabitIds = new HashSet<>();
+    private final ExecutorService databaseExecutor = Executors.newSingleThreadExecutor();
+    private final Map<Long, CheckInRecord> todayRecordByHabitId = new HashMap<>();
+    private final HashSet<String> checkedRecordDateKeys = new HashSet<>();
 
     private boolean listMode = false;
     private int currentHabitPosition = 0;
@@ -158,29 +164,59 @@ public class MainActivity extends AppCompatActivity {
         calendarCompletedCount = findViewById(R.id.calendar_completed_count);
         calendarPlanCount = findViewById(R.id.calendar_plan_count);
         calendarCompletionRate = findViewById(R.id.calendar_completion_rate);
-        habitRepository = new HabitRepository(getApplicationContext());
-        habits = habitRepository.getHabits();
-        selectAllCalendarHabits();
-        setupHabitPager();
-        setupHabitList();
-        setupViewModeSwitch();
-        updateHeader(0);
-        setupCalendarNavigation();
-        renderCalendarGrid();
-        setupBottomTabs();
 
-        findViewById(R.id.add_activity_button).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
-            createHabitLauncher.launch(intent);
+        // 数据库操作放在单线程池中执行，避免阻塞 UI 线程。
+        executeDatabaseTask(() -> {
+            try {
+                habitRepository = new HabitRepository(getApplicationContext());
+                habits = habitRepository.getHabits();
+                reloadHomeRecordStateFromDatabase();
+
+                runOnUiThread(() -> {
+                    selectAllCalendarHabits();
+                    setupHabitPager();
+                    setupHabitList();
+                    setupViewModeSwitch();
+                    updateHeader(0);
+                    setupCalendarNavigation();
+                    loadCalendarDataAndRender();
+                    setupBottomTabs();
+                    findViewById(R.id.add_activity_button).setOnClickListener(v -> {
+                        Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
+                        createHabitLauncher.launch(intent);
+                    });
+                    findViewById(R.id.calendar_activity_filter_button).setOnClickListener(v -> {
+                        Intent intent = new Intent(MainActivity.this, HabitFilterActivity.class);
+                        intent.putExtra(
+                                HabitFilterActivity.EXTRA_SELECTED_HABIT_IDS,
+                                new HashSet<>(selectedCalendarHabitIds)
+                        );
+                        habitFilterLauncher.launch(intent);
+                    });
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "数据加载失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
         });
-        findViewById(R.id.calendar_activity_filter_button).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, HabitFilterActivity.class);
-            intent.putExtra(
-                    HabitFilterActivity.EXTRA_SELECTED_HABIT_IDS,
-                    new HashSet<>(selectedCalendarHabitIds)
-            );
-            habitFilterLauncher.launch(intent);
-        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        databaseExecutor.shutdown();
+    }
+
+    private void executeDatabaseTask(Runnable task) {
+        if (databaseExecutor.isShutdown()) {
+            return;
+        }
+        try {
+            databaseExecutor.execute(task);
+        } catch (RuntimeException ignored) {
+            // Activity may be finishing while a delayed UI callback tries to refresh data.
+        }
     }
 
     private void selectAllCalendarHabits() {
@@ -200,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
         selectedCalendarHabitIds.clear();
         selectedCalendarHabitIds.addAll(selectedHabitIds);
         updateCalendarFilterLabel();
-        renderCalendarGrid();
+        loadCalendarDataAndRender();
     }
 
     @SuppressWarnings({"deprecation", "unchecked"})
@@ -284,15 +320,84 @@ public class MainActivity extends AppCompatActivity {
         DateUtils.clearTime(selectedDate);
         findViewById(R.id.calendar_prev_month).setOnClickListener(v -> {
             visibleMonth.add(Calendar.MONTH, -1);
-            renderCalendarGrid();
+            loadCalendarDataAndRender();
         });
         findViewById(R.id.calendar_next_month).setOnClickListener(v -> {
             visibleMonth.add(Calendar.MONTH, 1);
-            renderCalendarGrid();
+            loadCalendarDataAndRender();
         });
     }
 
-    private void renderCalendarGrid() {
+    // 加载当前 visibleMonth 范围内的打卡记录数量和 selectedDate 的打卡详情，并刷新日历界面。
+    private void loadCalendarDataAndRender() {
+        if (habitRepository == null) {
+            return;
+        }
+
+        Calendar rangeStartDate = getCalendarGridStartDate();
+        Calendar rangeEndDate = (Calendar) rangeStartDate.clone();
+        rangeEndDate.add(Calendar.DAY_OF_MONTH, 41);
+        CheckInRecord.RecordDate recordDate = CheckInRecord.RecordDate.fromCalendar(selectedDate);
+        HashSet<Long> selectedHabitIds = new HashSet<>(selectedCalendarHabitIds);
+
+        executeDatabaseTask(() -> {
+            try {
+                Map<Integer, Integer> recordCountByDateKey =
+                        habitRepository.getCheckInCountByDateRange(
+                                rangeStartDate,
+                                rangeEndDate,
+                                selectedHabitIds
+                        );
+                Map<Long, CheckInRecord> recordByHabitId =
+                        habitRepository.getRecordsByDate(recordDate, selectedHabitIds);
+
+                runOnUiThread(() -> renderCalendarGrid(recordCountByDateKey, recordByHabitId));
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "日历加载失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
+    // 获取当前日历网格的起始日期（即第一个单元格的日期），用于查询打卡记录。
+    private Calendar getCalendarGridStartDate() {
+        Calendar firstDay = (Calendar) visibleMonth.clone();
+        firstDay.set(Calendar.DAY_OF_MONTH, 1);
+
+        int leadingDays = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7;
+        Calendar cellDate = (Calendar) firstDay.clone();
+        cellDate.add(Calendar.DAY_OF_MONTH, -leadingDays);
+        return cellDate;
+    }
+
+    private void reloadHomeRecordStateFromDatabase() {
+        todayRecordByHabitId.clear();
+        checkedRecordDateKeys.clear();
+
+        List<CheckInRecord.RecordDate> weekDates = getCurrentWeekDates();
+        for (Habit habit : habits) {
+            CheckInRecord todayRecord = habitRepository.getTodayRecord(habit.id);
+            if (todayRecord != null) {
+                todayRecordByHabitId.put(habit.id, todayRecord);
+            }
+
+            for (CheckInRecord.RecordDate date : weekDates) {
+                if (habitRepository.hasRecordOnDate(habit.id, date)) {
+                    checkedRecordDateKeys.add(getRecordCacheKey(habit.id, date));
+                }
+            }
+        }
+    }
+
+    private String getRecordCacheKey(long habitId, CheckInRecord.RecordDate date) {
+        return habitId + ":" + DateUtils.toDateKey(date);
+    }
+
+    private void renderCalendarGrid(
+            Map<Integer, Integer> recordCountByDateKey,
+            Map<Long, CheckInRecord> recordByHabitId
+    ) {
         calendarMonthTitle.setText(String.format(
                 Locale.CHINA,
                 "%d \u5E74 %d \u6708",
@@ -302,7 +407,7 @@ public class MainActivity extends AppCompatActivity {
 
         LayoutInflater inflater = LayoutInflater.from(this);
         calendarGrid.removeAllViews();
-        CalendarDaySpec[] days = buildVisibleMonthDays();
+        CalendarDaySpec[] days = buildVisibleMonthDays(recordCountByDateKey);
         for (int i = 0; i < days.length; i++) {
             CalendarDaySpec day = days[i];
             View dayView = inflater.inflate(R.layout.item_calendar_day, calendarGrid, false);
@@ -317,26 +422,11 @@ public class MainActivity extends AppCompatActivity {
             dayView.setLayoutParams(params);
             calendarGrid.addView(dayView);
         }
-        renderSelectedDateRecords();
+        renderSelectedDateRecords(recordByHabitId);
     }
 
-    private CalendarDaySpec[] buildVisibleMonthDays() {
-        Calendar firstDay = (Calendar) visibleMonth.clone();
-        firstDay.set(Calendar.DAY_OF_MONTH, 1);
-
-        int leadingDays = (firstDay.get(Calendar.DAY_OF_WEEK) + 5) % 7;
-        Calendar cellDate = (Calendar) firstDay.clone();
-        cellDate.add(Calendar.DAY_OF_MONTH, -leadingDays);
-        Calendar rangeStartDate = (Calendar) cellDate.clone();
-        Calendar rangeEndDate = (Calendar) rangeStartDate.clone();
-        rangeEndDate.add(Calendar.DAY_OF_MONTH, 41);
-        Map<Integer, Integer> recordCountByDateKey =
-                habitRepository.getCheckInCountByDateRange(
-                        rangeStartDate,
-                        rangeEndDate,
-                        selectedCalendarHabitIds
-                );
-
+    private CalendarDaySpec[] buildVisibleMonthDays(Map<Integer, Integer> recordCountByDateKey) {
+        Calendar cellDate = getCalendarGridStartDate();
         Calendar today = Calendar.getInstance();
         DateUtils.clearTime(today);
         CalendarDaySpec[] days = new CalendarDaySpec[42];
@@ -391,17 +481,12 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             selectedDate = (Calendar) day.date.clone();
-            renderCalendarGrid();
+            loadCalendarDataAndRender();
         });
     }
 
-    private void renderSelectedDateRecords() {
+    private void renderSelectedDateRecords(Map<Long, CheckInRecord> recordByHabitId) {
         CheckInRecord.RecordDate recordDate = CheckInRecord.RecordDate.fromCalendar(selectedDate);
-        Map<Long, CheckInRecord> recordByHabitId = habitRepository.getRecordsByDate(
-                recordDate,
-                selectedCalendarHabitIds
-        );
-
         calendarSelectedDateTitle.setText(String.format(
                 Locale.CHINA,
                 "%d-%d-%d",
@@ -611,17 +696,30 @@ public class MainActivity extends AppCompatActivity {
      * 创建一个新活动并刷新卡片列表。
      */
     private void addHabit(String name, String unit) {
-        Habit habit = habitRepository.addHabit(name, unit);
-        selectedCalendarHabitIds.add(habit.id);
-        updateCalendarFilterLabel();
-        habitAdapter.notifyItemInserted(habits.size() - 1);
-        habitListAdapter.notifyItemInserted(habits.size() - 1);
-        habitPager.setCurrentItem(habits.size() - 1, true);
-        renderCalendarGrid();
+        executeDatabaseTask(() -> {
+        try {
+            Habit habit = habitRepository.addHabit(name, unit);
+            reloadHomeRecordStateFromDatabase();
 
-        // 创建完成后自动滑到新活动卡片。
-        habitPager.setCurrentItem(habits.size() - 1, true);
-        updateHeader(habits.size() - 1);
+            runOnUiThread(() -> {
+                selectedCalendarHabitIds.add(habit.id);
+                updateCalendarFilterLabel();
+                int newPosition = habits.size() - 1;
+                habitAdapter.notifyItemInserted(newPosition);
+                habitListAdapter.notifyItemInserted(newPosition);
+
+                //创建完成后自动定位到新活动卡片
+                habitPager.setCurrentItem(newPosition, true);
+                loadCalendarDataAndRender();
+                updateHeader(newPosition);
+                Toast.makeText(this, "活动已创建", Toast.LENGTH_SHORT).show();
+            });
+        } catch (Exception e) {
+            runOnUiThread(() ->
+                    Toast.makeText(this, "创建失败，请重试", Toast.LENGTH_SHORT).show()
+            );
+        }
+    });
     }
 
     /**
@@ -639,17 +737,35 @@ public class MainActivity extends AppCompatActivity {
      * 查找指定活动今天的打卡记录。
      */
     private CheckInRecord getTodayRecord(long habitId) {
-        return habitRepository.getTodayRecord(habitId);
+        return todayRecordByHabitId.get(habitId);
     }
 
     /**
      * 今日打卡：新增 record，并同步更新 Habit 上的统计字段。
      */
     private void checkInToday(Habit habit) {
-        if (habitRepository.checkInToday(habit)) {
-            refreshHabitUi(habit);
-            renderCalendarGrid();
-        }
+        executeDatabaseTask(() -> {
+            try {
+                boolean success = habitRepository.checkInToday(habit);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                }
+
+                runOnUiThread(() -> {
+                    if (success) {
+                        refreshHabitUi(habit);
+                        loadCalendarDataAndRender();
+                        Toast.makeText(this, "打卡成功", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "今天已经打过卡", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "打卡失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     private void checkInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate) {
@@ -665,28 +781,64 @@ public class MainActivity extends AppCompatActivity {
         String source = DateUtils.isSameDate(selected, today)
                 ? CheckInRecord.SOURCE_NORMAL
                 : CheckInRecord.SOURCE_PATCH;
-        if (habitRepository.checkInOnDate(habit, recordDate, source)) {
-            habitAdapter.notifyDataSetChanged();
-            habitListAdapter.notifyDataSetChanged();
-            renderCalendarGrid();
-        }
+        executeDatabaseTask(() -> {
+            try {
+                boolean success = habitRepository.checkInOnDate(habit, recordDate, source);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                }
+
+                runOnUiThread(() -> {
+                    if (success) {
+                        habitAdapter.notifyDataSetChanged();
+                        habitListAdapter.notifyDataSetChanged();
+                        loadCalendarDataAndRender();
+                        Toast.makeText(this, "\u6253\u5361\u6210\u529f", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "\u5df2\u7ecf\u6253\u8fc7\u5361", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "\u6253\u5361\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     /**
      * 取消今日打卡：删除今天的 record，并回退 Habit 上的统计字段。
      */
     private void cancelTodayCheckIn(Habit habit) {
-        if (habitRepository.cancelTodayCheckIn(habit)) {
-            refreshHabitUi(habit);
-            renderCalendarGrid();
-        }
+        executeDatabaseTask(() -> {
+            try {
+                boolean success = habitRepository.cancelTodayCheckIn(habit);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                }
+
+                runOnUiThread(() -> {
+                    if (success) {
+                        refreshHabitUi(habit);
+                        loadCalendarDataAndRender();
+                        Toast.makeText(this, "\u5df2\u53d6\u6d88\u6253\u5361", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "\u6ca1\u6709\u53ef\u53d6\u6d88\u7684\u6253\u5361", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "\u53d6\u6d88\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
     }
 
     /**
      * 判断指定活动在某一天是否已经打卡。
      */
     private boolean hasRecordOnDate(long habitId, CheckInRecord.RecordDate date) {
-        return habitRepository.hasRecordOnDate(habitId, date);
+        return checkedRecordDateKeys.contains(getRecordCacheKey(habitId, date));
     }
 
     /**
@@ -745,14 +897,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyRecordDetailValue(long habitId, CheckInRecord.RecordDate recordDate, long newValue) {
-        int habitPosition = habitRepository.findHabitPosition(habitId);
-        if (habitRepository.applyRecordDetailValue(habitId, recordDate, newValue)) {
-            if (habitPosition >= 0) {
-                habitAdapter.notifyItemChanged(habitPosition);
-                habitListAdapter.notifyItemChanged(habitPosition);
+        executeDatabaseTask(() -> {
+            try {
+                int habitPosition = habitRepository.findHabitPosition(habitId);
+                boolean success = habitRepository.applyRecordDetailValue(habitId, recordDate, newValue);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                }
+
+                runOnUiThread(() -> {
+                    if (success) {
+                        if (habitPosition >= 0) {
+                            habitAdapter.notifyItemChanged(habitPosition);
+                            habitListAdapter.notifyItemChanged(habitPosition);
+                        }
+                        loadCalendarDataAndRender();
+                        Toast.makeText(this, "\u8bb0\u5f55\u5df2\u4fdd\u5b58", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "\u8bb0\u5f55\u6ca1\u6709\u53d8\u5316", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
+                );
             }
-            renderCalendarGrid();
-        }
+        });
     }
 
     private void refreshHabitUi(Habit habit) {
