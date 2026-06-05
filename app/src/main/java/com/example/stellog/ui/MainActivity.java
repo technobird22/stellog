@@ -15,6 +15,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
@@ -820,6 +821,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // 取消打卡与补打卡时弹出二次确认窗口
     private void checkInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate, TextView actionButton) {
         Calendar selected = (Calendar) selectedDate.clone();
         DateUtils.clearTime(selected);
@@ -829,6 +831,43 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "不能为未来日期打卡", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        if (selected.before(today)) {
+            showPatchCheckInConfirmDialog(habit, recordDate, actionButton);
+            return;
+        }
+
+        performCheckInOnSelectedDate(habit, recordDate, actionButton);
+    }
+
+    private void showPatchCheckInConfirmDialog(
+            Habit habit,
+            CheckInRecord.RecordDate recordDate,
+            TextView actionButton
+    ) {
+        String dateText = String.format(
+                Locale.CHINA,
+                "%d-%02d-%02d",
+                recordDate.year,
+                recordDate.month,
+                recordDate.day
+        );
+
+        new AlertDialog.Builder(this)
+                .setTitle("\u786e\u8ba4\u8865\u6253\u5361")
+                .setMessage(String.format(Locale.CHINA, "\u786e\u5b9a\u4e3a %s \u8865\u6253\u5361\u5417\uff1f", dateText))
+                .setNegativeButton("\u53d6\u6d88", null)
+                .setPositiveButton("\u786e\u5b9a", (dialog, which) ->
+                        performCheckInOnSelectedDate(habit, recordDate, actionButton)
+                )
+                .show();
+    }
+
+    private void performCheckInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate, TextView actionButton) {
+        Calendar selected = (Calendar) selectedDate.clone();
+        DateUtils.clearTime(selected);
+        Calendar today = Calendar.getInstance();
+        DateUtils.clearTime(today);
 
         String source = DateUtils.isSameDate(selected, today)
                 ? CheckInRecord.SOURCE_NORMAL
@@ -868,6 +907,17 @@ public class MainActivity extends AppCompatActivity {
      * 取消今日打卡：删除今天的 record，并回退 Habit 上的统计字段。
      */
     private void cancelTodayCheckIn(Habit habit, TextView actionButton) {
+        new AlertDialog.Builder(this)
+                .setTitle("\u786e\u8ba4\u53d6\u6d88\u6253\u5361")
+                .setMessage("\u786e\u5b9a\u53d6\u6d88\u4eca\u65e5\u6253\u5361\u5417\uff1f")
+                .setNegativeButton("\u53d6\u6d88", null)
+                .setPositiveButton("\u786e\u5b9a", (dialog, which) ->
+                        performCancelTodayCheckIn(habit, actionButton)
+                )
+                .show();
+    }
+
+    private void performCancelTodayCheckIn(Habit habit, TextView actionButton) {
         setActionButtonLoading(actionButton, true, "\u53d6\u6d88\u4e2d...");
         executeDatabaseTask(() -> {
             try {
