@@ -3,6 +3,7 @@ package com.example.stellog.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.EditText;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -18,6 +19,7 @@ import com.example.stellog.R;
  * 目前只负责收集活动名称和单位，并通过 ActivityResult 返回给 MainActivity。
  */
 public class CreateHabitActivity extends AppCompatActivity {
+    private TextView saveButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +36,8 @@ public class CreateHabitActivity extends AppCompatActivity {
 
         findViewById(R.id.create_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.create_cancel_button).setOnClickListener(v -> finish());
-        findViewById(R.id.create_save_button).setOnClickListener(v -> saveHabitInput());
+        saveButton = findViewById(R.id.create_save_button);
+        saveButton.setOnClickListener(v -> saveHabitInput());
     }
 
     private void saveHabitInput() {
@@ -50,6 +53,8 @@ public class CreateHabitActivity extends AppCompatActivity {
             return;
         }
 
+        setSaveButtonLoading(true);
+
         // 通过 Intent 返回输入结果，真正创建 Habit 的逻辑由 MainActivity 统一处理。
         Intent resultIntent = new Intent();
         resultIntent.putExtra("habit_name", name);
@@ -57,5 +62,14 @@ public class CreateHabitActivity extends AppCompatActivity {
 
         setResult(RESULT_OK, resultIntent);
         finish();
+    }
+
+    private void setSaveButtonLoading(boolean loading) {
+        if (saveButton == null) {
+            return;
+        }
+        saveButton.setEnabled(!loading);
+        saveButton.setAlpha(loading ? 0.65f : 1f);
+        saveButton.setText(loading ? "\u4fdd\u5b58\u4e2d..." : "\u4fdd\u5b58");
     }
 }

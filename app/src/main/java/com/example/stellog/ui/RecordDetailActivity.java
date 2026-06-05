@@ -31,6 +31,7 @@ public class RecordDetailActivity extends AppCompatActivity {
     private int recordYear = -1;
     private int recordMonth = -1;
     private int recordDay = -1;
+    private TextView saveButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,7 +72,8 @@ public class RecordDetailActivity extends AppCompatActivity {
 
         findViewById(R.id.record_detail_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.record_detail_cancel_button).setOnClickListener(v -> finish());
-        findViewById(R.id.record_detail_save_button).setOnClickListener(v -> saveRecordValue());
+        saveButton = findViewById(R.id.record_detail_save_button);
+        saveButton.setOnClickListener(v -> saveRecordValue());
     }
 
     private void saveRecordValue() {
@@ -96,6 +98,8 @@ public class RecordDetailActivity extends AppCompatActivity {
             return;
         }
 
+        setSaveButtonLoading(true);
+
         Intent resultIntent = new Intent();
         resultIntent.putExtra(EXTRA_HABIT_ID, habitId);
         resultIntent.putExtra(EXTRA_RECORD_VALUE, value);
@@ -106,5 +110,14 @@ public class RecordDetailActivity extends AppCompatActivity {
         }
         setResult(RESULT_OK, resultIntent);
         finish();
+    }
+
+    private void setSaveButtonLoading(boolean loading) {
+        if (saveButton == null) {
+            return;
+        }
+        saveButton.setEnabled(!loading);
+        saveButton.setAlpha(loading ? 0.65f : 1f);
+        saveButton.setText(loading ? "\u4fdd\u5b58\u4e2d..." : "\u4fdd\u5b58");
     }
 }

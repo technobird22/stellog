@@ -73,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView calendarCompletedCount;
     private TextView calendarPlanCount;
     private TextView calendarCompletionRate;
+    private View mainLoadingOverlay;
+    private View mainLoading;
     private final Calendar visibleMonth = Calendar.getInstance();
     private Calendar selectedDate = Calendar.getInstance();
     private final HashSet<Long> selectedCalendarHabitIds = new HashSet<>();
@@ -164,6 +166,9 @@ public class MainActivity extends AppCompatActivity {
         calendarCompletedCount = findViewById(R.id.calendar_completed_count);
         calendarPlanCount = findViewById(R.id.calendar_plan_count);
         calendarCompletionRate = findViewById(R.id.calendar_completion_rate);
+        mainLoadingOverlay = findViewById(R.id.main_loading_overlay);
+        mainLoading = findViewById(R.id.main_loading);
+        setMainLoading(true);
 
         // 数据库操作放在单线程池中执行，避免阻塞 UI 线程。
         executeDatabaseTask(() -> {
@@ -195,6 +200,9 @@ public class MainActivity extends AppCompatActivity {
                     });
                 });
             } catch (Exception e) {
+                runOnUiThread(() -> {
+                    setMainLoading(false);
+                });
                 runOnUiThread(() ->
                         Toast.makeText(this, "数据加载失败，请重试", Toast.LENGTH_SHORT).show()
                 );
@@ -217,6 +225,23 @@ public class MainActivity extends AppCompatActivity {
         } catch (RuntimeException ignored) {
             // Activity may be finishing while a delayed UI callback tries to refresh data.
         }
+    }
+
+    private void setMainLoading(boolean loading) {
+        if (mainLoadingOverlay == null || mainLoading == null) {
+            return;
+        }
+        mainLoadingOverlay.setVisibility(loading ? View.VISIBLE : View.GONE);
+        mainLoading.setVisibility(loading ? View.VISIBLE : View.GONE);
+    }
+
+    private void setActionButtonLoading(TextView button, boolean loading, String text) {
+        if (button == null) {
+            return;
+        }
+        button.setEnabled(!loading);
+        button.setAlpha(loading ? 0.65f : 1f);
+        button.setText(text);
     }
 
     private void selectAllCalendarHabits() {
@@ -330,6 +355,10 @@ public class MainActivity extends AppCompatActivity {
 
     // 加载当前 visibleMonth 范围内的打卡记录数量和 selectedDate 的打卡详情，并刷新日历界面。
     private void loadCalendarDataAndRender() {
+        loadCalendarDataAndRender(true);
+    }
+
+    private void loadCalendarDataAndRender(boolean showLoading) {
         if (habitRepository == null) {
             return;
         }
@@ -339,6 +368,9 @@ public class MainActivity extends AppCompatActivity {
         rangeEndDate.add(Calendar.DAY_OF_MONTH, 41);
         CheckInRecord.RecordDate recordDate = CheckInRecord.RecordDate.fromCalendar(selectedDate);
         HashSet<Long> selectedHabitIds = new HashSet<>(selectedCalendarHabitIds);
+        if (showLoading) {
+            setMainLoading(true);
+        }
 
         executeDatabaseTask(() -> {
             try {
@@ -353,6 +385,9 @@ public class MainActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> renderCalendarGrid(recordCountByDateKey, recordByHabitId));
             } catch (Exception e) {
+                runOnUiThread(() -> {
+                    setMainLoading(false);
+                });
                 runOnUiThread(() ->
                         Toast.makeText(this, "日历加载失败，请重试", Toast.LENGTH_SHORT).show()
                 );
@@ -394,6 +429,7 @@ public class MainActivity extends AppCompatActivity {
         return habitId + ":" + DateUtils.toDateKey(date);
     }
 
+    // 渲染日历表格，每个格子显示对应日期和打卡记录数量，选中日期高亮，并在下方显示选中日期的打卡详情。
     private void renderCalendarGrid(
             Map<Integer, Integer> recordCountByDateKey,
             Map<Long, CheckInRecord> recordByHabitId
@@ -423,8 +459,10 @@ public class MainActivity extends AppCompatActivity {
             calendarGrid.addView(dayView);
         }
         renderSelectedDateRecords(recordByHabitId);
+        setMainLoading(false);
     }
 
+    // 计算每一个日期格上展示的日期，并判断是否属于本月
     private CalendarDaySpec[] buildVisibleMonthDays(Map<Integer, Integer> recordCountByDateKey) {
         Calendar cellDate = getCalendarGridStartDate();
         Calendar today = Calendar.getInstance();
@@ -452,6 +490,7 @@ public class MainActivity extends AppCompatActivity {
         return days;
     }
 
+    // 将数据绑定到组件，并显示出相应状态
     private void bindCalendarDay(View dayView, CalendarDaySpec day) {
         TextView dayNumber = dayView.findViewById(R.id.calendar_day_number);
         TextView badge = dayView.findViewById(R.id.calendar_day_badge);
@@ -485,6 +524,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // 渲染选中日期的打卡详情，包括每个活动的打卡状态和操作按钮，以及当日总体完成率。
     private void renderSelectedDateRecords(Map<Long, CheckInRecord> recordByHabitId) {
         CheckInRecord.RecordDate recordDate = CheckInRecord.RecordDate.fromCalendar(selectedDate);
         calendarSelectedDateTitle.setText(String.format(
@@ -518,6 +558,7 @@ public class MainActivity extends AppCompatActivity {
         calendarCompletionRate.setText(String.format(Locale.CHINA, "%d%%", completionRate));
     }
 
+    // 根据选中日期与今天的关系，更新提示语。
     private void updateSelectedDateHint() {
         Calendar selected = (Calendar) selectedDate.clone();
         DateUtils.clearTime(selected);
@@ -533,6 +574,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 渲染选中日期的每个活动打卡记录行，包括活动名称、完成状态和操作按钮（打卡/补打卡/查看详情）。
     private View createSelectedDateRecordRow(Habit habit, CheckInRecord record, CheckInRecord.RecordDate recordDate) {
         boolean completed = record != null;
         LinearLayout row = new LinearLayout(this);
@@ -582,6 +624,7 @@ public class MainActivity extends AppCompatActivity {
         return row;
     }
 
+    // 根据打卡记录状态和选中日期与今天的关系，创建相应的操作按钮（打卡/补打卡/查看详情/不可打卡）。
     private TextView createCalendarRecordActionButton(
             Habit habit,
             CheckInRecord record,
@@ -620,7 +663,7 @@ public class MainActivity extends AppCompatActivity {
         button.setText(todaySelected ? "打卡" : "补打卡");
         button.setTextColor(getColor(R.color.white));
         button.setBackgroundResource(R.drawable.bg_create_action_primary);
-        button.setOnClickListener(v -> checkInOnSelectedDate(habit, recordDate));
+        button.setOnClickListener(v -> checkInOnSelectedDate(habit, recordDate, button));
         return button;
     }
 
@@ -710,7 +753,7 @@ public class MainActivity extends AppCompatActivity {
 
                 //创建完成后自动定位到新活动卡片
                 habitPager.setCurrentItem(newPosition, true);
-                loadCalendarDataAndRender();
+                loadCalendarDataAndRender(false);
                 updateHeader(newPosition);
                 Toast.makeText(this, "活动已创建", Toast.LENGTH_SHORT).show();
             });
@@ -744,6 +787,11 @@ public class MainActivity extends AppCompatActivity {
      * 今日打卡：新增 record，并同步更新 Habit 上的统计字段。
      */
     private void checkInToday(Habit habit) {
+        checkInToday(habit, null);
+    }
+
+    private void checkInToday(Habit habit, TextView actionButton) {
+        setActionButtonLoading(actionButton, true, "\u6253\u5361\u4e2d...");
         executeDatabaseTask(() -> {
             try {
                 boolean success = habitRepository.checkInToday(habit);
@@ -752,15 +800,19 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, "\u6253\u5361");
                     if (success) {
                         refreshHabitUi(habit);
-                        loadCalendarDataAndRender();
+                        loadCalendarDataAndRender(false);
                         Toast.makeText(this, "打卡成功", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "今天已经打过卡", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
+                runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, "\u6253\u5361");
+                });
                 runOnUiThread(() ->
                         Toast.makeText(this, "打卡失败，请重试", Toast.LENGTH_SHORT).show()
                 );
@@ -768,7 +820,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void checkInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate) {
+    private void checkInOnSelectedDate(Habit habit, CheckInRecord.RecordDate recordDate, TextView actionButton) {
         Calendar selected = (Calendar) selectedDate.clone();
         DateUtils.clearTime(selected);
         Calendar today = Calendar.getInstance();
@@ -781,6 +833,10 @@ public class MainActivity extends AppCompatActivity {
         String source = DateUtils.isSameDate(selected, today)
                 ? CheckInRecord.SOURCE_NORMAL
                 : CheckInRecord.SOURCE_PATCH;
+        String idleText = DateUtils.isSameDate(selected, today)
+                ? "\u6253\u5361"
+                : "\u8865\u6253\u5361";
+        setActionButtonLoading(actionButton, true, "\u6253\u5361\u4e2d...");
         executeDatabaseTask(() -> {
             try {
                 boolean success = habitRepository.checkInOnDate(habit, recordDate, source);
@@ -789,19 +845,21 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, idleText);
                     if (success) {
                         habitAdapter.notifyDataSetChanged();
                         habitListAdapter.notifyDataSetChanged();
-                        loadCalendarDataAndRender();
+                        loadCalendarDataAndRender(false);
                         Toast.makeText(this, "\u6253\u5361\u6210\u529f", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "\u5df2\u7ecf\u6253\u8fc7\u5361", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
-                runOnUiThread(() ->
-                        Toast.makeText(this, "\u6253\u5361\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
-                );
+                runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, idleText);
+                    Toast.makeText(this, "\u6253\u5361\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
@@ -809,7 +867,8 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 取消今日打卡：删除今天的 record，并回退 Habit 上的统计字段。
      */
-    private void cancelTodayCheckIn(Habit habit) {
+    private void cancelTodayCheckIn(Habit habit, TextView actionButton) {
+        setActionButtonLoading(actionButton, true, "\u53d6\u6d88\u4e2d...");
         executeDatabaseTask(() -> {
             try {
                 boolean success = habitRepository.cancelTodayCheckIn(habit);
@@ -818,18 +877,20 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, "\u53d6\u6d88");
                     if (success) {
                         refreshHabitUi(habit);
-                        loadCalendarDataAndRender();
+                        loadCalendarDataAndRender(false);
                         Toast.makeText(this, "\u5df2\u53d6\u6d88\u6253\u5361", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "\u6ca1\u6709\u53ef\u53d6\u6d88\u7684\u6253\u5361", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
-                runOnUiThread(() ->
-                        Toast.makeText(this, "\u53d6\u6d88\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
-                );
+                runOnUiThread(() -> {
+                    setActionButtonLoading(actionButton, false, "\u53d6\u6d88");
+                    Toast.makeText(this, "\u53d6\u6d88\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
@@ -911,16 +972,16 @@ public class MainActivity extends AppCompatActivity {
                             habitAdapter.notifyItemChanged(habitPosition);
                             habitListAdapter.notifyItemChanged(habitPosition);
                         }
-                        loadCalendarDataAndRender();
+                        loadCalendarDataAndRender(false);
                         Toast.makeText(this, "\u8bb0\u5f55\u5df2\u4fdd\u5b58", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "\u8bb0\u5f55\u6ca1\u6709\u53d8\u5316", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
-                runOnUiThread(() ->
-                        Toast.makeText(this, "\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
-                );
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "\u4fdd\u5b58\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
@@ -991,7 +1052,7 @@ public class MainActivity extends AppCompatActivity {
                     checkStatus.setBackgroundResource(R.drawable.bg_check_in_button);
                     checkStatus.setOnClickListener(v -> {
                         currentHabitPosition = position;
-                        checkInToday(habit);
+                        checkInToday(habit, checkStatus);
                     });
                 }
             }
@@ -1090,8 +1151,8 @@ public class MainActivity extends AppCompatActivity {
                 // 未打卡时显示“打卡”按钮；已打卡后显示“记录详细 / 取消”操作区。
                 checkInButton.setVisibility(checkedInToday ? View.GONE : View.VISIBLE);
                 checkedActions.setVisibility(checkedInToday ? View.VISIBLE : View.GONE);
-                checkInButton.setOnClickListener(v -> checkInToday(habit));
-                cancelCheckInButton.setOnClickListener(v -> cancelTodayCheckIn(habit));
+                checkInButton.setOnClickListener(v -> checkInToday(habit, checkInButton));
+                cancelCheckInButton.setOnClickListener(v -> cancelTodayCheckIn(habit, cancelCheckInButton));
                 // 为“记录详细”按钮设置点击监听器
                 itemView.findViewById(R.id.record_detail_button).setOnClickListener(v -> showRecordDetailPage(habit));
             }
