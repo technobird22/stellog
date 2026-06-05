@@ -54,4 +54,11 @@ public interface CheckInRecordDao {
      */
     @Delete
     void delete(CheckInRecordEntity record);
-}
+
+    @Query("SELECT COUNT(*) FROM check_in_records")
+    int countAll();
+
+    // 查询某个习惯在某个来源（如日历详情页）已打卡的日期列表，用于展示已打卡的日期标签。
+    @Query("SELECT dateKey FROM check_in_records WHERE habitId = :habitId AND source = :source")
+    List<Integer> findDateKeysByHabitAndSource(long habitId, String source);
+    }

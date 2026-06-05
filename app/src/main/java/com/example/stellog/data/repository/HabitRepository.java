@@ -2,12 +2,15 @@ package com.example.stellog.data.repository;
 
 import android.content.Context;
 
+import com.example.stellog.data.database.AchievementDao;
+import com.example.stellog.data.database.AchievementEntity;
 import com.example.stellog.data.database.CheckInRecordDao;
 import com.example.stellog.data.database.CheckInDateCount;
 import com.example.stellog.data.database.CheckInRecordEntity;
 import com.example.stellog.data.database.HabitDao;
 import com.example.stellog.data.database.HabitEntity;
 import com.example.stellog.data.database.StellogDatabase;
+import com.example.stellog.data.model.Achievement;
 import com.example.stellog.data.model.CheckInRecord;
 import com.example.stellog.data.model.Habit;
 import com.example.stellog.util.DateUtils;
@@ -18,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashSet;
 
 /**
  * 习惯数据仓库。
@@ -30,6 +34,7 @@ public class HabitRepository {
 
     private final HabitDao habitDao;
     private final CheckInRecordDao checkInRecordDao;
+    private final AchievementDao achievementDao;
     private final List<Habit> habits = new ArrayList<>();
 
     public HabitRepository(Context context) {
@@ -37,11 +42,22 @@ public class HabitRepository {
         StellogDatabase database = StellogDatabase.getInstance(context);
         habitDao = database.habitDao();
         checkInRecordDao = database.checkInRecordDao();
+        achievementDao = database.achievementDao();
+        seedDefaultAchievementsIfNeeded();
         reloadHabits();
     }
 
     public List<Habit> getHabits() {
         return habits;
+    }
+
+    public List<Achievement> getAchievements() {
+        List<Achievement> achievements = new ArrayList<>();
+        List<AchievementEntity> entities = achievementDao.getAll();
+        for (AchievementEntity entity : entities) {
+            achievements.add(entity.toModel());
+        }
+        return achievements;
     }
 
     public Habit addHabit(String name, String unit) {
@@ -223,4 +239,95 @@ public class HabitRepository {
             habits.add(entity.toModel());
         }
     }
+
+    // 成就解锁逻辑：每次创建习惯或打卡后检查是否满足成就条件，解锁后更新数据库并返回新解锁的成就列表。
+    public List<Achievement> checkAchievementsAfterHabitCreated() {
+        List<Achievement> unlocked = new ArrayList<>();
+        unlockIfEligible("diverse_5", habitDao.countAll() >= 5, unlocked);
+        return unlocked;
+    }
+
+    public List<Achievement> checkAchievementsAfterCheckIn(
+            long habitId,
+            CheckInRecord.RecordDate recordDate,
+            String source
+    ) {
+        List<Achievement> unlocked = new ArrayList<>();
+
+        int totalRecords = checkInRecordDao.countAll();
+        unlockIfEligible("beginner", totalRecords >= 1, unlocked);
+        unlockIfEligible("persistence_25", totalRecords >= 25, unlocked);
+        unlockIfEligible("persistence_100", totalRecords >= 100, unlocked);
+        unlockIfEligible("persistence_500", totalRecords >= 500, unlocked);
+
+        if (CheckInRecord.SOURCE_NORMAL.equals(source)) {
+            int consecutiveDays = countConsecutiveNormalDays(habitId, recordDate);
+            unlockIfEligible("attendance_7", consecutiveDays >= 7, unlocked);
+            unlockIfEligible("attendance_30", consecutiveDays >= 30, unlocked);
+            unlockIfEligible("attendance_180", consecutiveDays >= 180, unlocked);
+        }
+
+        return unlocked;
+    }
+
+    private int countConsecutiveNormalDays(long habitId, CheckInRecord.RecordDate recordDate) {
+        List<Integer> dateKeys = checkInRecordDao.findDateKeysByHabitAndSource(
+                habitId,
+                CheckInRecord.SOURCE_NORMAL
+        );
+        HashSet<Integer> dateKeySet = new HashSet<>(dateKeys);
+
+        Calendar cursor = Calendar.getInstance();
+        cursor.set(Calendar.YEAR, recordDate.year);
+        cursor.set(Calendar.MONTH, recordDate.month - 1);
+        cursor.set(Calendar.DAY_OF_MONTH, recordDate.day);
+        DateUtils.clearTime(cursor);
+
+        int consecutiveDays = 0;
+        while (dateKeySet.contains(DateUtils.toDateKey(cursor))) {
+            consecutiveDays++;
+            cursor.add(Calendar.DAY_OF_MONTH, -1);
+        }
+        return consecutiveDays;
+    }
+
+    private void unlockIfEligible(String code, boolean eligible, List<Achievement> unlocked) {
+        if (!eligible) {
+            return;
+        }
+
+        AchievementEntity entity = achievementDao.findByCode(code);
+        if (entity == null || entity.unlocked) {
+            return;
+        }
+
+        entity.unlocked = true;
+        entity.completedAt = System.currentTimeMillis();
+        achievementDao.update(entity);
+        unlocked.add(entity.toModel());
+    }
+
+    private void seedDefaultAchievementsIfNeeded() {
+        if (achievementDao.count() > 0) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        List<Achievement> achievements = new ArrayList<>();
+        achievements.add(new Achievement("beginner", "\u521d\u5fc3\u8005", "\u5b8c\u6210\u7b2c\u4e00\u6b21\u6253\u5361", "beginner", "1", false, 0, 0));
+        achievements.add(new Achievement("attendance_7", "\u5168\u52e4 I", "\u67d0\u4e2a\u6d3b\u52a8\u8fde\u7eed\u6253\u5361 7 \u5929", "attendance_7", "7", false, 0, 1));
+        achievements.add(new Achievement("attendance_30", "\u5168\u52e4 II", "\u67d0\u4e2a\u6d3b\u52a8\u8fde\u7eed\u6253\u5361 30 \u5929", "attendance_30", "30", false, 0, 2));
+        achievements.add(new Achievement("attendance_180", "\u5168\u52e4 III", "\u67d0\u4e2a\u6d3b\u52a8\u8fde\u7eed\u6253\u5361 180 \u5929", "attendance_180", "180", false, 0, 3));
+        achievements.add(new Achievement("persistence_25", "\u6301\u4e4b\u4ee5\u6052 I", "\u7d2f\u8ba1\u6253\u5361 25 \u6b21", "persistence_25", "25", false, 0, 4));
+        achievements.add(new Achievement("persistence_100", "\u6301\u4e4b\u4ee5\u6052 II", "\u7d2f\u8ba1\u6253\u5361 100 \u6b21", "persistence_100", "100", false, 0, 5));
+        achievements.add(new Achievement("persistence_500", "\u6301\u4e4b\u4ee5\u6052 III", "\u7d2f\u8ba1\u6253\u5361 500 \u6b21", "persistence_500", "500", false, 0, 6));
+        achievements.add(new Achievement("diverse_5", "\u5168\u9762\u53d1\u5c55", "\u540c\u65f6\u62e5\u6709 5 \u4e2a\u6d3b\u52a8", "diverse_5", "5", false, 0, 7));
+
+        List<AchievementEntity> entities = new ArrayList<>();
+        for (Achievement achievement : achievements) {
+            entities.add(AchievementEntity.fromModel(achievement));
+        }
+        achievementDao.insertAll(entities);
+    }
+
 }

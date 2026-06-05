@@ -43,4 +43,8 @@ public interface HabitDao {
      */
     @Update
     void update(HabitEntity habit);
+
+    // 查询数量，用于解锁成就
+    @Query("SELECT COUNT(*) FROM habits")
+    int countAll();
 }

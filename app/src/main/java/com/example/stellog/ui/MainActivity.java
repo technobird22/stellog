@@ -6,8 +6,11 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.GridLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,6 +29,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.stellog.R;
+import com.example.stellog.data.model.Achievement;
 import com.example.stellog.data.model.CalendarDaySpec;
 import com.example.stellog.data.model.CheckInRecord;
 import com.example.stellog.data.model.Habit;
@@ -33,7 +37,10 @@ import com.example.stellog.data.repository.HabitRepository;
 import com.example.stellog.util.DateUtils;
 import com.example.stellog.util.DimensionUtils;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -63,8 +70,12 @@ public class MainActivity extends AppCompatActivity {
     private HabitListAdapter habitListAdapter;
     private TextView pageIndicatorText;
     private View calendarContent;
+    private View achievementContent;
+    private View profileContent;
     private TextView homeTab;
     private TextView calendarTab;
+    private TextView achievementTab;
+    private TextView profileTab;
     private TextView calendarActivityFilterLabel;
     private GridLayout calendarGrid;
     private TextView calendarMonthTitle;
@@ -156,8 +167,12 @@ public class MainActivity extends AppCompatActivity {
         pageIndicatorText = findViewById(R.id.page_indicator_text);
         habitList = findViewById(R.id.habit_list);
         calendarContent = findViewById(R.id.calendar_content);
+        achievementContent = findViewById(R.id.achievement_content);
+        profileContent = findViewById(R.id.profile_content);
         homeTab = findViewById(R.id.home_tab);
         calendarTab = findViewById(R.id.calendar_tab);
+        achievementTab = findViewById(R.id.achievement_tab);
+        profileTab = findViewById(R.id.profile_tab);
         calendarActivityFilterLabel = findViewById(R.id.calendar_activity_filter_label);
         calendarGrid = findViewById(R.id.calendar_grid);
         calendarMonthTitle = findViewById(R.id.calendar_month_title);
@@ -185,8 +200,9 @@ public class MainActivity extends AppCompatActivity {
                     setupViewModeSwitch();
                     updateHeader(0);
                     setupCalendarNavigation();
-                    loadCalendarDataAndRender();
                     setupBottomTabs();
+                    setMainLoading(false);
+                    loadCalendarDataAndRender(false);
                     findViewById(R.id.add_activity_button).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
                         createHabitLauncher.launch(intent);
@@ -311,7 +327,235 @@ public class MainActivity extends AppCompatActivity {
     private void setupBottomTabs() {
         homeTab.setOnClickListener(v -> showHomePage());
         calendarTab.setOnClickListener(v -> showCalendarPage());
+        achievementTab.setOnClickListener(v -> showAchievementPage());
+        profileTab.setOnClickListener(v -> showProfilePage());
         showHomePage();
+    }
+
+    private void setupAchievementPage() {
+        if (!(achievementContent instanceof ScrollView) || habitRepository == null) {
+            return;
+        }
+
+        executeDatabaseTask(() -> {
+            try {
+                List<Achievement> achievements = habitRepository.getAchievements();
+                runOnUiThread(() -> renderAchievementPage(achievements));
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "\u6210\u5c31\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
+    private void renderAchievementPage(List<Achievement> achievements) {
+        ScrollView scrollView = (ScrollView) achievementContent;
+        scrollView.removeAllViews();
+
+        LinearLayout root = new LinearLayout(this);
+        root.setLayoutParams(new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
+        root.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = new TextView(this);
+        title.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                DimensionUtils.dpToPx(getResources(), 42)
+        ));
+        title.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        title.setText("\u6210\u5c31");
+        title.setTextColor(getColor(R.color.stellog_ink));
+        title.setTextSize(30);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(title);
+
+        LinearLayout grid = new LinearLayout(this);
+        LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        gridParams.topMargin = DimensionUtils.dpToPx(getResources(), 22);
+        grid.setLayoutParams(gridParams);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        root.addView(grid);
+
+        for (int i = 0; i < achievements.size(); i += 2) {
+            Achievement right = i + 1 < achievements.size() ? achievements.get(i + 1) : null;
+            addAchievementRow(grid, achievements.get(i), right);
+        }
+
+        scrollView.addView(root);
+    }
+
+    private void addAchievementRow(LinearLayout grid, Achievement left, Achievement right) {
+        LinearLayout row = new LinearLayout(this);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        if (grid.getChildCount() > 0) {
+            rowParams.topMargin = DimensionUtils.dpToPx(getResources(), 16);
+        }
+        row.setLayoutParams(rowParams);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        row.addView(createAchievementCard(left, true));
+        if (right == null) {
+            View placeholder = new View(this);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, 1, 1f);
+            params.leftMargin = DimensionUtils.dpToPx(getResources(), 8);
+            placeholder.setLayoutParams(params);
+            row.addView(placeholder);
+        } else {
+            row.addView(createAchievementCard(right, false));
+        }
+        grid.addView(row);
+    }
+
+    private View createAchievementCard(Achievement achievement, boolean leftColumn) {
+        int spacing = DimensionUtils.dpToPx(getResources(), 8);
+
+        LinearLayout card = new LinearLayout(this);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                0,
+                DimensionUtils.dpToPx(getResources(), 184),
+                1f
+        );
+        if (leftColumn) {
+            cardParams.rightMargin = spacing;
+        } else {
+            cardParams.leftMargin = spacing;
+        }
+        card.setLayoutParams(cardParams);
+        card.setBackgroundResource(achievement.unlocked
+                ? R.drawable.bg_achievement_unlocked
+                : R.drawable.bg_achievement_locked);
+        card.setGravity(android.view.Gravity.CENTER);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(
+                DimensionUtils.dpToPx(getResources(), 12),
+                DimensionUtils.dpToPx(getResources(), 12),
+                DimensionUtils.dpToPx(getResources(), 12),
+                DimensionUtils.dpToPx(getResources(), 12)
+        );
+
+        FrameLayout iconFrame = new FrameLayout(this);
+        iconFrame.setLayoutParams(new LinearLayout.LayoutParams(
+                DimensionUtils.dpToPx(getResources(), 78),
+                DimensionUtils.dpToPx(getResources(), 72)
+        ));
+
+        ImageView icon = new ImageView(this);
+        FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                DimensionUtils.dpToPx(getResources(), 64),
+                DimensionUtils.dpToPx(getResources(), 64),
+                android.view.Gravity.CENTER
+        );
+        icon.setLayoutParams(iconParams);
+        icon.setImageResource(getAchievementIconResId(achievement.iconKey));
+        if (!achievement.unlocked) {
+            icon.setColorFilter(android.graphics.Color.rgb(32, 36, 34));
+            icon.setAlpha(0.88f);
+        }
+        iconFrame.addView(icon);
+
+        if (achievement.unlocked) {
+            TextView countBadge = new TextView(this);
+            FrameLayout.LayoutParams countParams = new FrameLayout.LayoutParams(
+                    DimensionUtils.dpToPx(getResources(), 36),
+                    DimensionUtils.dpToPx(getResources(), 22),
+                    android.view.Gravity.BOTTOM | android.view.Gravity.END
+            );
+            countBadge.setLayoutParams(countParams);
+            countBadge.setGravity(android.view.Gravity.CENTER);
+            countBadge.setBackgroundResource(R.drawable.bg_calendar_count_badge);
+            countBadge.setText(achievement.countText);
+            countBadge.setTextColor(getColor(R.color.white));
+            countBadge.setTextSize(12);
+            countBadge.setTypeface(null, android.graphics.Typeface.BOLD);
+            iconFrame.addView(countBadge);
+        }
+
+        card.addView(iconFrame);
+
+        TextView name = new TextView(this);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        nameParams.topMargin = DimensionUtils.dpToPx(getResources(), 10);
+        name.setLayoutParams(nameParams);
+        name.setGravity(android.view.Gravity.CENTER);
+        name.setText(achievement.unlocked ? achievement.name : "\u9690\u85cf\u6210\u5c31");
+        name.setTextColor(getColor(R.color.stellog_ink));
+        name.setTextSize(15);
+        name.setTypeface(null, android.graphics.Typeface.BOLD);
+        card.addView(name);
+
+        TextView completedAt = new TextView(this);
+        LinearLayout.LayoutParams completedAtParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        completedAtParams.topMargin = DimensionUtils.dpToPx(getResources(), 4);
+        completedAt.setLayoutParams(completedAtParams);
+        completedAt.setGravity(android.view.Gravity.CENTER);
+        completedAt.setText(achievement.unlocked
+                ? formatAchievementCompletedAt(achievement.completedAt)
+                : "\u5b8c\u6210\u65f6\u95f4\u9690\u85cf");
+        completedAt.setTextColor(getColor(R.color.stellog_muted));
+        completedAt.setTextSize(12);
+        card.addView(completedAt);
+
+        TextView condition = new TextView(this);
+        LinearLayout.LayoutParams conditionParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        conditionParams.topMargin = DimensionUtils.dpToPx(getResources(), 5);
+        condition.setLayoutParams(conditionParams);
+        condition.setGravity(android.view.Gravity.CENTER);
+        condition.setText(achievement.unlocked ? achievement.condition : "\u8fbe\u6210\u6761\u4ef6\u9690\u85cf");
+        condition.setTextColor(getColor(R.color.stellog_muted));
+        condition.setTextSize(12);
+        card.addView(condition);
+
+        return card;
+    }
+
+    private int getAchievementIconResId(String iconKey) {
+        if ("attendance_7".equals(iconKey)) {
+            return R.drawable.achievement_attendance_7;
+        }
+        if ("attendance_30".equals(iconKey)) {
+            return R.drawable.achievement_attendance_30;
+        }
+        if ("attendance_180".equals(iconKey)) {
+            return R.drawable.achievement_attendance_180;
+        }
+        if ("persistence_25".equals(iconKey)) {
+            return R.drawable.achievement_persistence_25;
+        }
+        if ("persistence_100".equals(iconKey)) {
+            return R.drawable.achievement_persistence_100;
+        }
+        if ("persistence_500".equals(iconKey)) {
+            return R.drawable.achievement_persistence_500;
+        }
+        if ("diverse_5".equals(iconKey)) {
+            return R.drawable.achievement_diverse_5;
+        }
+        return R.drawable.achievement_beginner;
+    }
+
+    private String formatAchievementCompletedAt(long completedAt) {
+        if (completedAt <= 0) {
+            return "\u5c1a\u672a\u5b8c\u6210";
+        }
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(new Date(completedAt));
     }
 
     private void showHomePage() {
@@ -319,26 +563,56 @@ public class MainActivity extends AppCompatActivity {
         applyViewMode();
         findViewById(R.id.add_activity_button).setVisibility(View.VISIBLE);
         calendarContent.setVisibility(View.GONE);
+        achievementContent.setVisibility(View.GONE);
+        profileContent.setVisibility(View.GONE);
 
-        homeTab.setTextColor(getColor(R.color.stellog_primary));
-        homeTab.setTypeface(null, android.graphics.Typeface.BOLD);
-        calendarTab.setTextColor(getColor(R.color.stellog_ink));
-        calendarTab.setTypeface(null, android.graphics.Typeface.NORMAL);
+        selectBottomTab(homeTab);
     }
 
     private void showCalendarPage() {
+        hideHomeViews();
+        calendarContent.setVisibility(View.VISIBLE);
+        achievementContent.setVisibility(View.GONE);
+        profileContent.setVisibility(View.GONE);
+
+        selectBottomTab(calendarTab);
+    }
+
+    private void showAchievementPage() {
+        hideHomeViews();
+        calendarContent.setVisibility(View.GONE);
+        achievementContent.setVisibility(View.VISIBLE);
+        profileContent.setVisibility(View.GONE);
+        setupAchievementPage();
+
+        selectBottomTab(achievementTab);
+    }
+
+    private void showProfilePage() {
+        hideHomeViews();
+        calendarContent.setVisibility(View.GONE);
+        achievementContent.setVisibility(View.GONE);
+        profileContent.setVisibility(View.VISIBLE);
+
+        selectBottomTab(profileTab);
+    }
+
+    private void hideHomeViews() {
         findViewById(R.id.view_mode_switch).setVisibility(View.GONE);
         findViewById(R.id.page_indicator).setVisibility(View.GONE);
         findViewById(R.id.side_rail).setVisibility(View.GONE);
         habitPager.setVisibility(View.GONE);
         habitList.setVisibility(View.GONE);
         findViewById(R.id.add_activity_button).setVisibility(View.GONE);
-        calendarContent.setVisibility(View.VISIBLE);
+    }
 
-        homeTab.setTextColor(getColor(R.color.stellog_ink));
-        homeTab.setTypeface(null, android.graphics.Typeface.NORMAL);
-        calendarTab.setTextColor(getColor(R.color.stellog_primary));
-        calendarTab.setTypeface(null, android.graphics.Typeface.BOLD);
+    private void selectBottomTab(TextView selectedTab) {
+        TextView[] tabs = new TextView[]{homeTab, calendarTab, achievementTab, profileTab};
+        for (TextView tab : tabs) {
+            boolean selected = tab == selectedTab;
+            tab.setTextColor(getColor(selected ? R.color.stellog_primary : R.color.stellog_ink));
+            tab.setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
     }
 
     private void setupCalendarNavigation() {
@@ -743,6 +1017,8 @@ public class MainActivity extends AppCompatActivity {
         executeDatabaseTask(() -> {
         try {
             Habit habit = habitRepository.addHabit(name, unit);
+            List<Achievement> unlockedAchievements =
+                habitRepository.checkAchievementsAfterHabitCreated();
             reloadHomeRecordStateFromDatabase();
 
             runOnUiThread(() -> {
@@ -757,6 +1033,7 @@ public class MainActivity extends AppCompatActivity {
                 loadCalendarDataAndRender(false);
                 updateHeader(newPosition);
                 Toast.makeText(this, "活动已创建", Toast.LENGTH_SHORT).show();
+                handleUnlockedAchievements(unlockedAchievements);
             });
         } catch (Exception e) {
             runOnUiThread(() ->
@@ -796,8 +1073,16 @@ public class MainActivity extends AppCompatActivity {
         executeDatabaseTask(() -> {
             try {
                 boolean success = habitRepository.checkInToday(habit);
+                final List<Achievement> unlockedAchievements;
                 if (success) {
                     reloadHomeRecordStateFromDatabase();
+                    unlockedAchievements = habitRepository.checkAchievementsAfterCheckIn(
+                        habit.id,
+                        CheckInRecord.RecordDate.today(),
+                        CheckInRecord.SOURCE_NORMAL
+                    );
+                }else{
+                    unlockedAchievements = new ArrayList<>();
                 }
 
                 runOnUiThread(() -> {
@@ -806,6 +1091,7 @@ public class MainActivity extends AppCompatActivity {
                         refreshHabitUi(habit);
                         loadCalendarDataAndRender(false);
                         Toast.makeText(this, "打卡成功", Toast.LENGTH_SHORT).show();
+                        handleUnlockedAchievements(unlockedAchievements);
                     } else {
                         Toast.makeText(this, "今天已经打过卡", Toast.LENGTH_SHORT).show();
                     }
@@ -879,8 +1165,17 @@ public class MainActivity extends AppCompatActivity {
         executeDatabaseTask(() -> {
             try {
                 boolean success = habitRepository.checkInOnDate(habit, recordDate, source);
+                final List<Achievement> unlockedAchievements;
+
                 if (success) {
+                    unlockedAchievements = habitRepository.checkAchievementsAfterCheckIn(
+                            habit.id,
+                            recordDate,
+                            source
+                    );
                     reloadHomeRecordStateFromDatabase();
+                } else {
+                    unlockedAchievements = new ArrayList<>();
                 }
 
                 runOnUiThread(() -> {
@@ -889,6 +1184,7 @@ public class MainActivity extends AppCompatActivity {
                         habitAdapter.notifyDataSetChanged();
                         habitListAdapter.notifyDataSetChanged();
                         loadCalendarDataAndRender(false);
+                        handleUnlockedAchievements(unlockedAchievements);
                         Toast.makeText(this, "\u6253\u5361\u6210\u529f", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "\u5df2\u7ecf\u6253\u8fc7\u5361", Toast.LENGTH_SHORT).show();
@@ -943,6 +1239,22 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void handleUnlockedAchievements(List<Achievement> unlockedAchievements) {
+        if (unlockedAchievements == null || unlockedAchievements.isEmpty()) {
+            return;
+        }
+
+        setupAchievementPage();
+
+        for(Achievement unlockedAchivement: unlockedAchievements){
+            Toast.makeText(
+                this,
+                String.format("解锁成就：%s", unlockedAchivement.name),
+                Toast.LENGTH_SHORT
+            ).show();
+        }
     }
 
     /**
