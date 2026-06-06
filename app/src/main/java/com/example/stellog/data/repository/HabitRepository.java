@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Locale;
 
 /**
  * 习惯数据仓库。
@@ -328,6 +329,128 @@ public class HabitRepository {
             entities.add(AchievementEntity.fromModel(achievement));
         }
         achievementDao.insertAll(entities);
+    }
+
+    public String buildCurrentWeekAiContextPrompt() {
+        List<CheckInRecord.RecordDate> weekDates = DateUtils.getCurrentWeekDates();
+        if (weekDates.isEmpty()) {
+            return "本周数据暂时不可用。";
+        }
+
+        CheckInRecord.RecordDate startDate = weekDates.get(0);
+        CheckInRecord.RecordDate endDate = weekDates.get(weekDates.size() - 1);
+
+        int startDateKey = DateUtils.toDateKey(startDate);
+        int endDateKey = DateUtils.toDateKey(endDate);
+
+        List<HabitEntity> habitEntities = habitDao.getAll();
+        List<CheckInRecordEntity> recordEntities = checkInRecordDao.findByDateRange(startDateKey, endDateKey);
+
+        Map<Long, HabitEntity> habitById = new HashMap<>();
+        for (HabitEntity habit : habitEntities) {
+            habitById.put(habit.id, habit);
+        }
+
+        Map<Long, Integer> weeklyCountByHabit = new HashMap<>();
+        Map<Long, Long> weeklyValueByHabit = new HashMap<>();
+        Map<Long, Integer> normalCountByHabit = new HashMap<>();
+        Map<Long, Integer> patchCountByHabit = new HashMap<>();
+
+        for (CheckInRecordEntity record : recordEntities) {
+            long habitId = record.habitId;
+
+            weeklyCountByHabit.put(
+                    habitId,
+                    weeklyCountByHabit.getOrDefault(habitId, 0) + 1
+            );
+
+            weeklyValueByHabit.put(
+                    habitId,
+                    weeklyValueByHabit.getOrDefault(habitId, 0L) + record.value
+            );
+
+            if (CheckInRecord.SOURCE_NORMAL.equals(record.source)) {
+                normalCountByHabit.put(
+                        habitId,
+                        normalCountByHabit.getOrDefault(habitId, 0) + 1
+                );
+            } else if (CheckInRecord.SOURCE_PATCH.equals(record.source)) {
+                patchCountByHabit.put(
+                        habitId,
+                        patchCountByHabit.getOrDefault(habitId, 0) + 1
+                );
+            }
+        }
+
+        int totalHabitCount = habitEntities.size();
+        int totalRecordCount = recordEntities.size();
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("以下是用户本周习惯数据，请你基于这些数据回答用户问题。");
+        prompt.append("如果用户问题与数据无关，也可以正常回答，但不要编造不存在的打卡记录。\n\n");
+
+        prompt.append("本周范围：")
+                .append(formatDate(startDate))
+                .append(" 至 ")
+                .append(formatDate(endDate))
+                .append("\n");
+
+        prompt.append("用户当前活动数量：")
+                .append(totalHabitCount)
+                .append(" 个\n");
+
+        prompt.append("本周总打卡次数：")
+                .append(totalRecordCount)
+                .append(" 次\n\n");
+
+        prompt.append("各活动本周情况：\n");
+
+        if (habitEntities.isEmpty()) {
+            prompt.append("- 用户还没有创建活动。\n");
+        } else {
+            for (HabitEntity habit : habitEntities) {
+                int weekCount = weeklyCountByHabit.getOrDefault(habit.id, 0);
+                long weekValue = weeklyValueByHabit.getOrDefault(habit.id, 0L);
+                int normalCount = normalCountByHabit.getOrDefault(habit.id, 0);
+                int patchCount = patchCountByHabit.getOrDefault(habit.id, 0);
+
+                prompt.append("- ")
+                        .append(habit.name)
+                        .append("：本周打卡 ")
+                        .append(weekCount)
+                        .append(" 次");
+
+                if (weekValue > 0) {
+                    prompt.append("，记录值合计 ")
+                            .append(weekValue)
+                            .append(habit.unit == null ? "" : habit.unit);
+                }
+
+                prompt.append("，正常打卡 ")
+                        .append(normalCount)
+                        .append(" 次，补打卡 ")
+                        .append(patchCount)
+                        .append(" 次");
+
+                if (weekCount == 0) {
+                    prompt.append("，本周尚未完成");
+                }
+
+                prompt.append("\n");
+            }
+        }
+
+        prompt.append("\n回答要求：");
+        prompt.append("1. 使用中文。");
+        prompt.append("2. 回答要简洁、具体、鼓励用户继续行动。");
+        prompt.append("3. 如果发现某个活动本周 0 次打卡，可以温和提醒。");
+        prompt.append("4. 不要声称知道用户没有提供的数据。");
+
+        return prompt.toString();
+    }
+
+    private String formatDate(CheckInRecord.RecordDate date) {
+        return String.format(Locale.getDefault(), "%04d-%02d-%02d", date.year, date.month, date.day);
     }
 
 }

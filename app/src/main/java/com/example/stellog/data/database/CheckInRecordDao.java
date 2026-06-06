@@ -61,4 +61,7 @@ public interface CheckInRecordDao {
     // 查询某个习惯在某个来源（如日历详情页）已打卡的日期列表，用于展示已打卡的日期标签。
     @Query("SELECT dateKey FROM check_in_records WHERE habitId = :habitId AND source = :source")
     List<Integer> findDateKeysByHabitAndSource(long habitId, String source);
+
+    @Query("SELECT * FROM check_in_records WHERE dateKey BETWEEN :startDateKey AND :endDateKey ORDER BY dateKey ASC, habitId ASC")
+    List<CheckInRecordEntity> findByDateRange(int startDateKey, int endDateKey);
     }

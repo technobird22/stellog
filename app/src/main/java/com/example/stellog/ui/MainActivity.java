@@ -27,6 +27,8 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
+import android.content.SharedPreferences;
+import android.text.TextUtils;
 
 import com.example.stellog.R;
 import com.example.stellog.data.model.Achievement;
@@ -206,6 +208,11 @@ public class MainActivity extends AppCompatActivity {
                     findViewById(R.id.add_activity_button).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
                         createHabitLauncher.launch(intent);
+                    });
+                    findViewById(R.id.ai_assistant_entry).setOnClickListener(v -> openAiAssistantOrSettings());
+                    findViewById(R.id.ai_settings_entry).setOnClickListener(v -> {
+                        Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
+                        startActivity(intent);
                     });
                     findViewById(R.id.calendar_activity_filter_button).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, HabitFilterActivity.class);
@@ -558,10 +565,26 @@ public class MainActivity extends AppCompatActivity {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(new Date(completedAt));
     }
 
+    private void openAiAssistantOrSettings() {
+        SharedPreferences preferences = getSharedPreferences(AiSettingsActivity.PREF_NAME, MODE_PRIVATE);
+        String apiKey = preferences.getString(AiSettingsActivity.KEY_API_KEY, "");
+
+        if (TextUtils.isEmpty(apiKey)) {
+            Toast.makeText(this, "请先设置 API Key", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
+            startActivity(intent);
+            return;
+        }
+
+        Intent intent = new Intent(MainActivity.this, AiAssistantActivity.class);
+        startActivity(intent);
+    }
+
     private void showHomePage() {
         findViewById(R.id.view_mode_switch).setVisibility(View.VISIBLE);
         applyViewMode();
         findViewById(R.id.add_activity_button).setVisibility(View.VISIBLE);
+        findViewById(R.id.ai_assistant_entry).setVisibility(View.VISIBLE);
         calendarContent.setVisibility(View.GONE);
         achievementContent.setVisibility(View.GONE);
         profileContent.setVisibility(View.GONE);
@@ -604,6 +627,7 @@ public class MainActivity extends AppCompatActivity {
         habitPager.setVisibility(View.GONE);
         habitList.setVisibility(View.GONE);
         findViewById(R.id.add_activity_button).setVisibility(View.GONE);
+        findViewById(R.id.ai_assistant_entry).setVisibility(View.GONE);
     }
 
     private void selectBottomTab(TextView selectedTab) {
