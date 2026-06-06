@@ -2034,6 +2034,11 @@ public class MainActivity extends AppCompatActivity {
 
                 bindWeekDots(habit.id);
 
+                // 点击本周打卡情况区域进入日历页面。
+                View.OnClickListener openCalendar = v -> showCalendarPage();
+                itemView.findViewById(R.id.week_labels).setOnClickListener(openCalendar);
+                itemView.findViewById(R.id.week_checks).setOnClickListener(openCalendar);
+
                 // 未打卡时显示“打卡”按钮；已打卡后显示“记录详细 / 取消”操作区。
                 checkInButton.setVisibility(checkedInToday ? View.GONE : View.VISIBLE);
                 checkedActions.setVisibility(checkedInToday ? View.VISIBLE : View.GONE);
