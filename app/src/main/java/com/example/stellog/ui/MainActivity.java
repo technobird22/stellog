@@ -1032,32 +1032,62 @@ public class MainActivity extends AppCompatActivity {
                 0
         );
 
-        TextView recordText = new TextView(this);
-        recordText.setLayoutParams(new LinearLayout.LayoutParams(
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setLayoutParams(new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 1f
         ));
-        recordText.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        recordText.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
-        recordText.setTextSize(16);
-        recordText.setTypeface(null, android.graphics.Typeface.BOLD);
-        if (completed) {
-            recordText.setText(String.format(
-                    Locale.CHINA,
-                    "%s  ·  已完成 %d %s",
-                    habit.name,
-                    record.value,
-                    habit.unit
-            ));
-        } else {
-            recordText.setText(String.format(Locale.CHINA, "%s  ·  待打卡", habit.name));
-        }
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView nameText = new TextView(this);
+        nameText.setText(habit.name);
+        nameText.setSingleLine(true);
+        nameText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nameText.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
+        nameText.setTextSize(16);
+        nameText.setTypeface(null, android.graphics.Typeface.BOLD);
+
+        TextView statusText = new TextView(this);
+        statusText.setText(buildSelectedDateStatus(completed, record, habit.unit));
+        statusText.setSingleLine(true);
+        statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        statusText.setTextColor(getColor(completed ? R.color.stellog_primary : R.color.stellog_muted));
+        statusText.setTextSize(13);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        statusParams.topMargin = DimensionUtils.dpToPx(getResources(), 2);
+        statusText.setLayoutParams(statusParams);
+
+        textColumn.addView(nameText);
+        textColumn.addView(statusText);
 
         TextView actionButton = createCalendarRecordActionButton(habit, record, recordDate);
-        row.addView(recordText);
+        LinearLayout.LayoutParams actionParams =
+                (LinearLayout.LayoutParams) actionButton.getLayoutParams();
+        actionParams.leftMargin = DimensionUtils.dpToPx(getResources(), 12);
+        actionButton.setLayoutParams(actionParams);
+
+        row.addView(textColumn);
         row.addView(actionButton);
         return row;
+    }
+
+    // 选中日期记录行的状态文案，数量为 0 或单位为空时省略。
+    private String buildSelectedDateStatus(boolean completed, CheckInRecord record, String unit) {
+        if (!completed) {
+            return "待打卡";
+        }
+        if (record.value <= 0) {
+            return "已完成";
+        }
+        String trimmedUnit = unit == null ? "" : unit.trim();
+        return trimmedUnit.isEmpty()
+                ? String.format(Locale.CHINA, "已完成 %d", record.value)
+                : String.format(Locale.CHINA, "已完成 %d %s", record.value, trimmedUnit);
     }
 
     // 根据打卡记录状态和选中日期与今天的关系，创建相应的操作按钮（打卡/补打卡/查看详情/不可打卡）。
