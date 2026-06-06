@@ -64,6 +64,73 @@ public class HabitRepository {
         return habits;
     }
 
+    public static class AccountStats {
+        public final int habitCount;
+        public final int totalRecords;
+        public final int longestStreak;
+
+        public AccountStats(int habitCount, int totalRecords, int longestStreak) {
+            this.habitCount = habitCount;
+            this.totalRecords = totalRecords;
+            this.longestStreak = longestStreak;
+        }
+    }
+
+    // 我的页“账户数据”：活动数量、累计打卡次数、历史最长连续天数。
+    public AccountStats getAccountStats() {
+        int habitCount = habits.size();
+        int totalRecords = checkInRecordDao.countAll();
+        int longestStreak = 0;
+        for (Habit habit : habits) {
+            int streak = longestStreakForHabit(habit.id);
+            if (streak > longestStreak) {
+                longestStreak = streak;
+            }
+        }
+        return new AccountStats(habitCount, totalRecords, longestStreak);
+    }
+
+    // 把某习惯的打卡日期转成连续天序号，求最长连续段。
+    private int longestStreakForHabit(long habitId) {
+        List<Integer> dateKeys = checkInRecordDao.findDateKeysByHabit(habitId);
+        if (dateKeys.isEmpty()) {
+            return 0;
+        }
+
+        java.util.TreeSet<Long> days = new java.util.TreeSet<>();
+        for (int dateKey : dateKeys) {
+            days.add(dateKeyToEpochDay(dateKey));
+        }
+
+        int longest = 1;
+        int current = 1;
+        Long previous = null;
+        for (long day : days) {
+            if (previous != null) {
+                current = day == previous + 1 ? current + 1 : 1;
+            }
+            if (current > longest) {
+                longest = current;
+            }
+            previous = day;
+        }
+        return longest;
+    }
+
+    // 年月日转连续天序号（civil -> epoch day），避免时区和跨月影响连续判断。
+    private long dateKeyToEpochDay(int dateKey) {
+        int year = dateKey / 10000;
+        int month = (dateKey / 100) % 100;
+        int day = dateKey % 100;
+
+        int y = year - (month <= 2 ? 1 : 0);
+        long era = (y >= 0 ? y : y - 399) / 400;
+        long yoe = y - era * 400;
+        long doy = (153L * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+        long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        return era * 146097 + doe - 719468;
+    }
+
     public List<Achievement> getAchievements() {
         List<Achievement> achievements = new ArrayList<>();
         List<AchievementEntity> entities = achievementDao.getAll();

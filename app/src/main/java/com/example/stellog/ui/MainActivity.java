@@ -799,8 +799,31 @@ public class MainActivity extends AppCompatActivity {
         calendarContent.setVisibility(View.GONE);
         achievementContent.setVisibility(View.GONE);
         profileContent.setVisibility(View.VISIBLE);
+        bindAccountStats();
 
         selectBottomTab(profileTab);
+    }
+
+    // 在后台计算账户数据并回填到“我的”页。
+    private void bindAccountStats() {
+        if (habitRepository == null) {
+            return;
+        }
+        executeDatabaseTask(() -> {
+            try {
+                HabitRepository.AccountStats stats = habitRepository.getAccountStats();
+                runOnUiThread(() -> {
+                    ((TextView) findViewById(R.id.account_habit_count))
+                            .setText(String.format(Locale.CHINA, "创建活动    %d", stats.habitCount));
+                    ((TextView) findViewById(R.id.account_total_records))
+                            .setText(String.format(Locale.CHINA, "累计记录    %d", stats.totalRecords));
+                    ((TextView) findViewById(R.id.account_longest_streak))
+                            .setText(String.format(Locale.CHINA, "最长连续    %d 天", stats.longestStreak));
+                });
+            } catch (Exception ignored) {
+                // 账户数据展示失败不影响其他功能。
+            }
+        });
     }
 
     private void hideHomeViews() {

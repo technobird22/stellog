@@ -64,4 +64,8 @@ public interface CheckInRecordDao {
 
     @Query("SELECT * FROM check_in_records WHERE dateKey BETWEEN :startDateKey AND :endDateKey ORDER BY dateKey ASC, habitId ASC")
     List<CheckInRecordEntity> findByDateRange(int startDateKey, int endDateKey);
+
+    // 某个习惯的全部打卡日期，用于统计最长连续天数。
+    @Query("SELECT DISTINCT dateKey FROM check_in_records WHERE habitId = :habitId")
+    List<Integer> findDateKeysByHabit(long habitId);
     }
