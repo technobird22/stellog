@@ -9,31 +9,40 @@
         android:id="@+id/habit_card_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/bg_main_habit_card"
+        android:background="@drawable/bg_main_habit_card_undone"
         android:elevation="3dp"
         android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:paddingStart="32dp"
-        android:paddingTop="28dp"
-        android:paddingEnd="32dp"
-        android:paddingBottom="22dp">
+        android:paddingStart="28dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="28dp"
+        android:paddingBottom="20dp">
+
+        <ImageView
+            android:id="@+id/card_reminder_button"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_gravity="center_horizontal"
+            android:alpha="0.5"
+            android:contentDescription="提醒"
+            android:padding="6dp"
+            android:src="@drawable/ic_bell" />
 
         <TextView
             android:id="@+id/habit_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
             android:includeFontPadding="false"
             android:text="看书"
             android:textColor="@color/black"
-            android:textSize="25sp"
+            android:textSize="24sp"
             android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="5dp"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="5dp"
+            android:layout_marginTop="8dp"
             android:gravity="center_horizontal"
             android:orientation="vertical">
 
@@ -44,7 +53,7 @@
                 android:includeFontPadding="false"
                 android:text="0"
                 android:textColor="@color/stellog_primary"
-                android:textSize="60sp"
+                android:textSize="52sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -53,24 +62,41 @@
                 android:includeFontPadding="false"
                 android:text="天收获"
                 android:textColor="@color/black"
-                android:textSize="36sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/target_summary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:text="此日计 0 分钟，已累计 0 分钟"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="今日 0 · 累计 0"
                 android:textColor="#939996"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/priority_hint_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_chip"
+                android:paddingStart="14dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="6dp"
+                android:text="保持当前节奏"
+                android:textColor="@color/stellog_primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/week_labels"
             android:layout_width="match_parent"
-            android:layout_height="28dp"
-            android:layout_marginTop="12dp"
+            android:layout_height="26dp"
+            android:layout_marginTop="14dp"
             android:gravity="center"
             android:orientation="horizontal">
 
@@ -171,18 +197,18 @@
             android:id="@+id/today_date"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="12dp"
             android:gravity="center"
             android:text="今天 | 2026-05-11"
             android:textColor="@color/stellog_primary"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/check_in_button"
             android:layout_width="150dp"
             android:layout_height="46dp"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="16dp"
             android:background="@drawable/bg_check_in_button"
             android:elevation="2dp"
             android:gravity="center"
