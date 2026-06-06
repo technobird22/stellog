@@ -38,6 +38,18 @@ public class HabitRepository {
     private final AchievementDao achievementDao;
     private final List<Habit> habits = new ArrayList<>();
 
+    public static class HabitPrioritySnapshot {
+        public final long habitId;
+        public final double score;
+        public final String hint;
+
+        public HabitPrioritySnapshot(long habitId, double score, String hint) {
+            this.habitId = habitId;
+            this.score = score;
+            this.hint = hint;
+        }
+    }
+
     public HabitRepository(Context context) {
         // 使用 applicationContext 创建数据库，避免 Repository 间接持有 Activity。
         StellogDatabase database = StellogDatabase.getInstance(context);
@@ -329,6 +341,87 @@ public class HabitRepository {
             entities.add(AchievementEntity.fromModel(achievement));
         }
         achievementDao.insertAll(entities);
+    }
+
+    public List<HabitPrioritySnapshot> buildHabitPrioritySnapshots() {
+        List<HabitPrioritySnapshot> snapshots = new ArrayList<>();
+        if (habits.isEmpty()) {
+            return snapshots;
+        }
+
+        Calendar today = Calendar.getInstance();
+        DateUtils.clearTime(today);
+        Calendar startDate = (Calendar) today.clone();
+        startDate.add(Calendar.DAY_OF_MONTH, -6);
+
+        int startDateKey = DateUtils.toDateKey(startDate);
+        int endDateKey = DateUtils.toDateKey(today);
+
+        List<CheckInRecordEntity> recentRecords = checkInRecordDao.findByDateRange(startDateKey, endDateKey);
+        Map<Long, HashSet<Integer>> checkedDateKeysByHabit = new HashMap<>();
+        for (CheckInRecordEntity record : recentRecords) {
+            HashSet<Integer> checkedDates = checkedDateKeysByHabit.get(record.habitId);
+            if (checkedDates == null) {
+                checkedDates = new HashSet<>();
+                checkedDateKeysByHabit.put(record.habitId, checkedDates);
+            }
+            checkedDates.add(record.dateKey);
+        }
+
+        for (Habit habit : habits) {
+            HashSet<Integer> checkedDates = checkedDateKeysByHabit.get(habit.id);
+            if (checkedDates == null) {
+                checkedDates = new HashSet<>();
+            }
+
+            int recentCheckInDays = checkedDates.size();
+            int recentGapDays = Math.max(0, 7 - recentCheckInDays);
+            int streakDays = countRecentStreakDays(checkedDates, today);
+
+            double completionRate = recentCheckInDays / 7.0;
+            double interruptionRisk = recentGapDays / 7.0;
+            double streakScore = Math.min(streakDays, 14) / 14.0;
+
+            // TODO: 接入提醒时间后，可增加“临近提醒时间”因子并参与加权。
+            double riskAdjustedByActivity = interruptionRisk * (0.4 + 0.6 * completionRate);
+            double score = riskAdjustedByActivity * 0.45
+                    + completionRate * 0.35
+                    + streakScore * 0.20;
+
+            snapshots.add(new HabitPrioritySnapshot(habit.id, score, buildPriorityHint(
+                    recentCheckInDays,
+                    recentGapDays,
+                    streakDays
+            )));
+        }
+
+        return snapshots;
+    }
+
+    private int countRecentStreakDays(HashSet<Integer> checkedDateKeys, Calendar today) {
+        int streak = 0;
+        Calendar cursor = (Calendar) today.clone();
+        while (checkedDateKeys.contains(DateUtils.toDateKey(cursor))) {
+            streak++;
+            cursor.add(Calendar.DAY_OF_MONTH, -1);
+        }
+        return streak;
+    }
+
+    private String buildPriorityHint(int recentCheckInDays, int recentGapDays, int streakDays) {
+        if (recentGapDays >= 4 && recentCheckInDays >= 2) {
+            return "中断风险较高，建议优先关注";
+        }
+        if (streakDays >= 3) {
+            return "连续坚持表现较好";
+        }
+        if (recentCheckInDays >= 5) {
+            return "近期活跃度较高";
+        }
+        if (recentCheckInDays <= 1) {
+            return "建议从今天的小目标开始";
+        }
+        return "保持当前节奏";
     }
 
     public String buildCurrentWeekAiContextPrompt() {
