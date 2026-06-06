@@ -192,6 +192,19 @@ public class HabitRepository {
         return updated;
     }
 
+    // 删除活动，并一并清除它的全部打卡记录。
+    public boolean deleteHabit(long habitId) {
+        int index = findHabitPosition(habitId);
+        if (index < 0) {
+            return false;
+        }
+
+        checkInRecordDao.deleteByHabitId(habitId);
+        habitDao.deleteById(habitId);
+        habits.remove(index);
+        return true;
+    }
+
     public CheckInRecord getTodayRecord(long habitId) {
         return getRecordOnDate(habitId, CheckInRecord.RecordDate.today());
     }

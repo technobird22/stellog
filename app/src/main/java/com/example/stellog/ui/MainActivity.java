@@ -1405,6 +1405,66 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // 长按活动弹出操作菜单：编辑或删除。
+    private void showHabitOptionsMenu(Habit habit) {
+        new AlertDialog.Builder(this)
+                .setTitle(habit.name)
+                .setItems(new String[]{"编辑活动", "删除活动"}, (dialog, which) -> {
+                    if (which == 0) {
+                        openEditHabit(habit);
+                    } else {
+                        confirmDeleteHabit(habit);
+                    }
+                })
+                .show();
+    }
+
+    private void confirmDeleteHabit(Habit habit) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除活动")
+                .setMessage(String.format(Locale.CHINA, "确定删除「%s」吗？该活动的打卡记录也会一并删除。", habit.name))
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> deleteHabit(habit))
+                .show();
+    }
+
+    private void deleteHabit(Habit habit) {
+        executeDatabaseTask(() -> {
+            try {
+                boolean success = habitRepository.deleteHabit(habit.id);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
+                }
+
+                runOnUiThread(() -> {
+                    if (!success) {
+                        Toast.makeText(this, "删除失败，请重试", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    selectedCalendarHabitIds.remove(habit.id);
+                    updateCalendarFilterLabel();
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+
+                    int position = Math.max(0, Math.min(currentHabitPosition, Math.max(0, habits.size() - 1)));
+                    currentHabitPosition = position;
+                    if (!habits.isEmpty()) {
+                        habitPager.setCurrentItem(position, false);
+                    }
+                    updateHeader(position);
+                    updateEmptyState();
+                    loadCalendarDataAndRender(false);
+                    Toast.makeText(this, "活动已删除", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "删除失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
     private void updateHeader(int position) {
         renderPageDots();
     }
@@ -1825,7 +1885,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // 长按列表项编辑活动。
                 itemView.setOnLongClickListener(v -> {
-                    openEditHabit(habit);
+                    showHabitOptionsMenu(habit);
                     return true;
                 });
 
@@ -1958,7 +2018,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // 长按卡片编辑活动。
                 itemView.findViewById(R.id.card_body).setOnLongClickListener(v -> {
-                    openEditHabit(habit);
+                    showHabitOptionsMenu(habit);
                     return true;
                 });
 
