@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/reminder_edit_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#EEF1EF"
+    tools:context=".ui.ReminderEditActivity">
+
+    <TextView
+        android:id="@+id/reminder_edit_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="34dp"
+        android:includeFontPadding="false"
+        android:text="@string/reminder_edit_title"
+        android:textColor="@color/stellog_ink"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/reminder_close_button"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="26dp"
+        android:background="@drawable/bg_icon_button"
+        android:gravity="center"
+        android:text="×"
+        android:textColor="@color/stellog_muted"
+        android:textSize="28sp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/reminder_sheet"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@drawable/bg_create_sheet"
+        android:elevation="6dp"
+        android:orientation="vertical"
+        android:paddingStart="28dp"
+        android:paddingTop="42dp"
+        android:paddingEnd="28dp"
+        android:paddingBottom="28dp"
+        android:layout_marginTop="34dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reminder_edit_title">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:contentDescription="@string/reminder_title_hint"
+                android:src="@drawable/ic_bell" />
+
+            <EditText
+                android:id="@+id/reminder_title_input"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginStart="18dp"
+                android:layout_gravity="center"
+                android:autofillHints="@string/reminder_title_hint"
+                android:backgroundTint="@color/stellog_primary"
+                android:hint="@string/reminder_title_hint"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingStart="18dp"
+                android:paddingEnd="0dp"
+                android:singleLine="true"
+                android:textColor="@color/stellog_ink"
+                android:textColorHint="#8F9692"
+                android:textSize="20sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:layout_marginTop="14dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/reminder_start_label"
+                android:textColor="@color/stellog_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/reminder_start_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_create_action_secondary"
+                android:paddingStart="22dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="22dp"
+                android:paddingBottom="10dp"
+                android:text="08:00"
+                android:textColor="@color/stellog_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/reminder_end_label"
+                android:textColor="@color/stellog_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/reminder_end_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_create_action_secondary"
+                android:paddingStart="22dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="22dp"
+                android:paddingBottom="10dp"
+                android:text="08:30"
+                android:textColor="@color/stellog_primary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/reminder_cancel_button"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_create_action_secondary"
+                android:gravity="center"
+                android:text="@string/cancel"
+                android:textColor="@color/stellog_muted"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/reminder_save_button"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_create_action_primary"
+                android:gravity="center"
+                android:text="@string/save"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

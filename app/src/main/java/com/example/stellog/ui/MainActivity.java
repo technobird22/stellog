@@ -157,6 +157,13 @@ public class MainActivity extends AppCompatActivity {
                     }
             );
 
+    // 提醒编辑页面返回后刷新闹铃按钮的提示状态。
+    private final ActivityResultLauncher<Intent> reminderLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> updateReminderIndicator()
+            );
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
@@ -230,6 +237,8 @@ public class MainActivity extends AppCompatActivity {
                         );
                         habitFilterLauncher.launch(intent);
                     });
+                    findViewById(R.id.reminder_button).setOnClickListener(v -> openReminderEditor());
+                    updateReminderIndicator();
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -634,6 +643,39 @@ public class MainActivity extends AppCompatActivity {
 
         Intent intent = new Intent(MainActivity.this, AiAssistantActivity.class);
         startActivity(intent);
+    }
+
+    // 打开当前活动的提醒编辑页面，标题默认带入活动名称。
+    private void openReminderEditor() {
+        if (habits == null || habits.isEmpty()) {
+            Toast.makeText(this, "请先创建活动", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int position = Math.max(0, Math.min(currentHabitPosition, habits.size() - 1));
+        Habit habit = habits.get(position);
+        Intent intent = new Intent(MainActivity.this, ReminderEditActivity.class);
+        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_NAME, habit.name);
+        reminderLauncher.launch(intent);
+    }
+
+    // 当前活动已设提醒时高亮闹铃按钮，否则保持半透明。
+    private void updateReminderIndicator() {
+        ImageView bell = findViewById(R.id.reminder_button);
+        if (bell == null || habits == null || habits.isEmpty()) {
+            return;
+        }
+        int position = Math.max(0, Math.min(currentHabitPosition, habits.size() - 1));
+        long habitId = habits.get(position).id;
+        boolean hasReminder = getSharedPreferences(ReminderEditActivity.PREF_NAME, MODE_PRIVATE)
+                .getBoolean("reminder_" + habitId + "_enabled", false);
+        if (hasReminder) {
+            bell.setColorFilter(getColor(R.color.stellog_primary));
+            bell.setAlpha(1f);
+        } else {
+            bell.clearColorFilter();
+            bell.setAlpha(0.5f);
+        }
     }
 
     private void showHomePage() {
@@ -1129,6 +1171,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageSelected(int position) {
                 currentHabitPosition = position;
                 updateHeader(position);
+                updateReminderIndicator();
             }
         });
     }

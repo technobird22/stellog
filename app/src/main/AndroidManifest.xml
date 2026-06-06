@@ -20,6 +20,9 @@
             android:name=".ui.AiSettingsActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.ReminderEditActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.HabitFilterActivity"
             android:exported="false" />
         <activity
