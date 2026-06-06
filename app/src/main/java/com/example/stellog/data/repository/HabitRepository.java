@@ -85,6 +85,7 @@ public class HabitRepository {
                 unit,
                 0,
                 false,
+                -1,
                 1,
                 0,
                 now,

@@ -19,6 +19,7 @@ public class HabitEntity {
     public String unit;
     public int recordNum;
     public boolean reminderEnabled;
+    public int reminderTimeMinutes;
     public int sortWeight;
     public long totalValue;
     public long createdAt;
@@ -35,6 +36,7 @@ public class HabitEntity {
         entity.unit = habit.unit;
         entity.recordNum = habit.recordNum;
         entity.reminderEnabled = habit.reminderEnabled;
+        entity.reminderTimeMinutes = habit.reminderTimeMinutes;
         entity.sortWeight = habit.sortWeight;
         entity.totalValue = habit.totalValue;
         entity.createdAt = habit.createdAt;
@@ -53,6 +55,7 @@ public class HabitEntity {
                 unit,
                 recordNum,
                 reminderEnabled,
+                reminderTimeMinutes,
                 sortWeight,
                 totalValue,
                 createdAt,

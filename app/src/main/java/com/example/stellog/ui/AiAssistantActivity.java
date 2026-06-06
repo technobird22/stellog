@@ -41,6 +41,7 @@ public class AiAssistantActivity extends AppCompatActivity {
     private TextView sendButton;
     private LinearLayout chatMessages;
 
+
     private final ExecutorService aiExecutor = Executors.newSingleThreadExecutor();
     private final JSONArray conversationInput = new JSONArray();
 

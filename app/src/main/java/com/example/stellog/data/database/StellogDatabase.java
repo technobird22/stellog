@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
  */
 @Database(
         entities = {HabitEntity.class, CheckInRecordEntity.class, AchievementEntity.class},
-        version = 3,
+        version = 4,
         exportSchema = false
 )
 public abstract class StellogDatabase extends RoomDatabase {

@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -39,6 +40,7 @@ import com.example.stellog.data.model.Habit;
 import com.example.stellog.data.repository.HabitRepository;
 import com.example.stellog.util.DateUtils;
 import com.example.stellog.util.DimensionUtils;
+import com.example.stellog.util.ReminderScheduler;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -138,6 +140,43 @@ public class MainActivity extends AppCompatActivity {
                     }
             );
 
+    private final ActivityResultLauncher<Intent> reminderEditLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+                            return;
+                        }
+                        long habitId = result.getData().getLongExtra(
+                                ReminderEditActivity.EXTRA_HABIT_ID, -1L
+                        );
+                        boolean enabled = result.getData().getBooleanExtra(
+                                ReminderEditActivity.EXTRA_REMINDER_ENABLED, false
+                        );
+                        int time = result.getData().getIntExtra(
+                                ReminderEditActivity.EXTRA_REMINDER_TIME, -1
+                        );
+                        int position = habitRepository.findHabitPosition(habitId);
+                        if (position >= 0) {
+                            Habit habit = habits.get(position);
+                            habit.reminderEnabled = enabled;
+                            habit.reminderTimeMinutes = time;
+                            refreshHabitUi(habit);
+                        }
+                        loadCalendarDataAndRender(false);
+                        String msg = enabled ? "提醒已开启" : "提醒已关闭";
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+                    }
+            );
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.RequestPermission(),
+                    granted -> {
+                        if (!granted) {
+                            Toast.makeText(this, "需要通知权限才能发送提醒", Toast.LENGTH_LONG).show();
+                        }
+                    }
+            );
     // 接收记录详细页面返回的新数值，并同步更新对应日期的 record 与活动累计值。
     private final ActivityResultLauncher<Intent> recordDetailLauncher =
             registerForActivityResult(
@@ -200,6 +239,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 habitRepository = new HabitRepository(getApplicationContext());
                 habits = habitRepository.getHabits();
+                rescheduleAllReminders();
                 reloadHomeRecordStateFromDatabase();
                 sortHabitsByPriority();
 
@@ -216,6 +256,19 @@ public class MainActivity extends AppCompatActivity {
                     findViewById(R.id.add_activity_button).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
                         createHabitLauncher.launch(intent);
+                    });
+                    findViewById(R.id.reminder_button).setOnClickListener(v -> {
+                        if (habits == null || habits.isEmpty()) {
+                            Toast.makeText(MainActivity.this, "还没有活动，请先创建", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        Habit currentHabit = habits.get(currentHabitPosition);
+                        Intent intent = new Intent(MainActivity.this, ReminderEditActivity.class);
+                        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_ID, currentHabit.id);
+                        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_NAME, currentHabit.name);
+                        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_ENABLED, currentHabit.reminderEnabled);
+                        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_TIME, currentHabit.reminderTimeMinutes);
+                        reminderEditLauncher.launch(intent);
                     });
                     findViewById(R.id.ai_assistant_entry).setOnClickListener(v -> openAiAssistantOrSettings());
                     findViewById(R.id.ai_settings_entry).setOnClickListener(v -> {
@@ -759,6 +812,17 @@ public class MainActivity extends AppCompatActivity {
         Calendar cellDate = (Calendar) firstDay.clone();
         cellDate.add(Calendar.DAY_OF_MONTH, -leadingDays);
         return cellDate;
+    }
+
+    private void rescheduleAllReminders() {
+        if (habitRepository == null || habits == null) {
+            return;
+        }
+        for (Habit habit : habits) {
+            if (habit.reminderEnabled && habit.reminderTimeMinutes >= 0) {
+                ReminderScheduler.scheduleReminder(getApplicationContext(), habit);
+            }
+        }
     }
 
     private void reloadHomeRecordStateFromDatabase() {

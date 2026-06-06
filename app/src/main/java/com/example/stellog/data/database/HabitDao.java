@@ -47,4 +47,7 @@ public interface HabitDao {
     // 查询数量，用于解锁成就
     @Query("SELECT COUNT(*) FROM habits")
     int countAll();
+
+    @Query("UPDATE habits SET reminderEnabled = :enabled, reminderTimeMinutes = :minutes, updatedAt = :updatedAt WHERE id = :habitId")
+    void updateReminder(long habitId, boolean enabled, int minutes, long updatedAt);
 }
