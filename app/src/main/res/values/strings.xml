@@ -1,7 +1,5 @@
 <resources>
     <string name="app_name">stellog</string>
-    <string name="page_indicator_format">%1$d / %2$d</string>
-    <string name="habit_target_summary">此日计 %1$d %2$s，已累计 %3$d %4$s</string>
     <string name="today_date_format">今天 | %1$s</string>
     <string name="create_habit_title">创建活动</string>
     <string name="habit_name_hint">记录具体的目标，愿望，习惯</string>
