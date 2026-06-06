@@ -438,35 +438,6 @@
             </LinearLayout>
 
             <LinearLayout
-                android:id="@+id/ai_assistant_entry"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/bg_calendar_panel"
-                android:elevation="3dp"
-                android:orientation="vertical"
-                android:padding="20dp"
-                android:clickable="true"
-                android:focusable="true">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="AI 助手"
-                    android:textColor="@color/stellog_ink"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="围绕习惯养成与打卡复盘提问"
-                    android:textColor="@color/stellog_muted"
-                    android:textSize="14sp" />
-            </LinearLayout>
-
-            <LinearLayout
                 android:id="@+id/ai_settings_entry"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -590,7 +561,7 @@
             android:gravity="center"
             android:text="首页"
             android:textColor="@color/stellog_primary"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -601,7 +572,18 @@
             android:gravity="center"
             android:text="日历"
             android:textColor="@color/stellog_muted"
-            android:textSize="18sp" />
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/ai_tab"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="AI助手"
+            android:textColor="@color/stellog_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/achievement_tab"
@@ -611,7 +593,7 @@
             android:gravity="center"
             android:text="成就"
             android:textColor="@color/stellog_muted"
-            android:textSize="18sp" />
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/profile_tab"
@@ -621,7 +603,7 @@
             android:gravity="center"
             android:text="我的"
             android:textColor="@color/stellog_muted"
-            android:textSize="18sp" />
+            android:textSize="16sp" />
     </LinearLayout>
 
     <TextView

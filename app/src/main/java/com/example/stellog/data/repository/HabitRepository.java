@@ -97,6 +97,32 @@ public class HabitRepository {
         return newHabit;
     }
 
+    // 编辑活动名称和单位。name/unit 是 final，用拷贝其余字段的新 Habit 替换原对象。
+    public Habit updateHabit(long habitId, String name, String unit) {
+        int index = findHabitPosition(habitId);
+        if (index < 0) {
+            return null;
+        }
+
+        Habit old = habits.get(index);
+        Habit updated = new Habit(
+                old.id,
+                old.userId,
+                name,
+                unit,
+                old.recordNum,
+                old.reminderEnabled,
+                old.sortWeight,
+                old.totalValue,
+                old.createdAt,
+                System.currentTimeMillis()
+        );
+
+        habitDao.update(HabitEntity.fromModel(updated));
+        habits.set(index, updated);
+        return updated;
+    }
+
     public CheckInRecord getTodayRecord(long habitId) {
         return getRecordOnDate(habitId, CheckInRecord.RecordDate.today());
     }

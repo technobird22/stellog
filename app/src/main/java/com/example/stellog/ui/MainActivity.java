@@ -82,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView calendarTab;
     private TextView achievementTab;
     private TextView profileTab;
+    private TextView aiTab;
     private TextView calendarActivityFilterLabel;
     private GridLayout calendarGrid;
     private TextView calendarMonthTitle;
@@ -123,7 +124,12 @@ public class MainActivity extends AppCompatActivity {
                             unit = "";
                         }
 
-                        addHabit(name.trim(), unit.trim());
+                        long editId = result.getData().getLongExtra(CreateHabitActivity.EXTRA_HABIT_ID, -1L);
+                        if (editId > 0) {
+                            updateHabit(editId, name.trim(), unit.trim());
+                        } else {
+                            addHabit(name.trim(), unit.trim());
+                        }
                     }
             );
 
@@ -191,6 +197,7 @@ public class MainActivity extends AppCompatActivity {
         calendarTab = findViewById(R.id.calendar_tab);
         achievementTab = findViewById(R.id.achievement_tab);
         profileTab = findViewById(R.id.profile_tab);
+        aiTab = findViewById(R.id.ai_tab);
         calendarActivityFilterLabel = findViewById(R.id.calendar_activity_filter_label);
         calendarGrid = findViewById(R.id.calendar_grid);
         calendarMonthTitle = findViewById(R.id.calendar_month_title);
@@ -229,7 +236,6 @@ public class MainActivity extends AppCompatActivity {
                         Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
                         createHabitLauncher.launch(intent);
                     });
-                    findViewById(R.id.ai_assistant_entry).setOnClickListener(v -> openAiAssistantOrSettings());
                     findViewById(R.id.ai_settings_entry).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
                         startActivity(intent);
@@ -459,6 +465,8 @@ public class MainActivity extends AppCompatActivity {
         calendarTab.setOnClickListener(v -> showCalendarPage());
         achievementTab.setOnClickListener(v -> showAchievementPage());
         profileTab.setOnClickListener(v -> showProfilePage());
+        // AI 助手是独立页面，点击直接打开，不改变底部选中态。
+        aiTab.setOnClickListener(v -> openAiAssistantOrSettings());
         showHomePage();
     }
 
@@ -1298,6 +1306,44 @@ public class MainActivity extends AppCompatActivity {
     });
     }
 
+    // 长按卡片进入编辑：复用创建页并预填名称和单位。
+    private void openEditHabit(Habit habit) {
+        Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_NAME, habit.name);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_UNIT, habit.unit);
+        createHabitLauncher.launch(intent);
+    }
+
+    private void updateHabit(long habitId, String name, String unit) {
+        executeDatabaseTask(() -> {
+            try {
+                Habit updated = habitRepository.updateHabit(habitId, name, unit);
+                sortHabitsByPriority();
+                runOnUiThread(() -> {
+                    if (updated == null) {
+                        Toast.makeText(this, "更新失败，请重试", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+                    int position = habitRepository.findHabitPosition(habitId);
+                    if (position >= 0) {
+                        currentHabitPosition = position;
+                        habitPager.setCurrentItem(position, false);
+                        updateHeader(position);
+                    }
+                    loadCalendarDataAndRender(false);
+                    Toast.makeText(this, "活动已更新", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "更新失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
     private void updateHeader(int position) {
         renderPageDots();
     }
@@ -1716,6 +1762,12 @@ public class MainActivity extends AppCompatActivity {
                         ? R.drawable.bg_dot_active
                         : R.drawable.bg_dot_red);
 
+                // 长按列表项编辑活动。
+                itemView.setOnLongClickListener(v -> {
+                    openEditHabit(habit);
+                    return true;
+                });
+
                 habitName.setText(habit.name);
                 if (priorityHint.isEmpty()) {
                     recordCount.setText(String.format(Locale.CHINA, "\u7d2f\u8ba1\u6253\u5361 %d \u5929", habit.recordNum));
@@ -1842,6 +1894,12 @@ public class MainActivity extends AppCompatActivity {
                 cardContent.setBackgroundResource(checkedInToday
                         ? R.drawable.bg_main_habit_card_done
                         : R.drawable.bg_main_habit_card_undone);
+
+                // 长按卡片编辑活动。
+                itemView.findViewById(R.id.card_body).setOnLongClickListener(v -> {
+                    openEditHabit(habit);
+                    return true;
+                });
 
                 // 每张卡片自带提醒入口，已设提醒时高亮。
                 if (hasReminder(habit.id)) {
