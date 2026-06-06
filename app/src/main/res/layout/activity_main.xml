@@ -128,6 +128,20 @@
         app:layout_constraintTop_toBottomOf="@id/view_mode_switch"
         tools:listitem="@layout/item_habit_list" />
 
+    <TextView
+        android:id="@+id/empty_home_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="还没有活动，点击右下角 + 创建第一个吧"
+        android:textColor="@color/stellog_muted"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottom_tabs"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/view_mode_switch" />
+
     <ScrollView
         android:id="@+id/calendar_content"
         android:layout_width="0dp"

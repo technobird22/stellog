@@ -678,6 +678,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // 没有活动时在主页展示创建提示。
+    private void updateEmptyState() {
+        View hint = findViewById(R.id.empty_home_hint);
+        if (hint == null) {
+            return;
+        }
+        boolean empty = habits == null || habits.isEmpty();
+        hint.setVisibility(empty ? View.VISIBLE : View.GONE);
+    }
+
     private void showHomePage() {
         findViewById(R.id.view_mode_switch).setVisibility(View.VISIBLE);
         applyViewMode();
@@ -686,6 +696,7 @@ public class MainActivity extends AppCompatActivity {
         calendarContent.setVisibility(View.GONE);
         achievementContent.setVisibility(View.GONE);
         profileContent.setVisibility(View.GONE);
+        updateEmptyState();
 
         selectBottomTab(homeTab);
     }
@@ -726,6 +737,7 @@ public class MainActivity extends AppCompatActivity {
         habitList.setVisibility(View.GONE);
         findViewById(R.id.add_activity_button).setVisibility(View.GONE);
         findViewById(R.id.ai_assistant_entry).setVisibility(View.GONE);
+        findViewById(R.id.empty_home_hint).setVisibility(View.GONE);
     }
 
     private void selectBottomTab(TextView selectedTab) {
@@ -1193,6 +1205,7 @@ public class MainActivity extends AppCompatActivity {
                 updateCalendarFilterLabel();
                 habitAdapter.notifyDataSetChanged();
                 habitListAdapter.notifyDataSetChanged();
+                updateEmptyState();
 
                 int newPosition = habitRepository.findHabitPosition(habit.id);
                 if (newPosition < 0) {
