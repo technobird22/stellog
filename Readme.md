@@ -1,30 +1,39 @@
 # Stellog 项目说明
 
-Stellog 是一个习惯打卡 Android 应用。当前版本已经实现活动创建、主卡片展示、今日打卡、取消打卡、记录详情数量、周视图打卡圆点、日历页面、日历记录展示，以及日历活动筛选页面。
+Stellog 是一个习惯打卡 Android 应用。当前版本已实现：活动创建 / 编辑 / 删除、主页面卡片与列表两种展示、今日打卡、取消打卡、记录详情数量、周视图打卡圆点、日历页面、日历记录展示、日历活动筛选、历史补打卡、提醒编辑、成就系统、智能推荐排序、AI 智能助手、深色模式。
 
-项目使用 Java 编写，数据持久化使用 Room。`Habit` 和 `CheckInRecord` 会保存到本地 SQLite 数据库 `stellog.db` 中。
+项目使用 Java 编写，数据持久化使用 Room。`Habit`、`CheckInRecord`、`Achievement` 会保存到本地 SQLite 数据库 `stellog.db` 中；提醒、AI 设置、深色模式等偏好保存在 SharedPreferences。
+
+> 说明：本文档下半部分（“DAO 接口”及之前）描述的是项目早期结构，仍然适用；末尾的 [“新增功能说明”](#新增功能说明) 一节补充了之后加入的成就、AI、提醒、智能推荐、深色模式与界面交互改动。
 
 ## 项目结构
 
 ```text
 app/src/main/java/com/example/stellog/
+├── StellogApp.java                  # Application，启动时应用深色模式设置
 ├── ui/
-│   ├── MainActivity.java
-│   ├── CreateHabitActivity.java
-│   ├── RecordDetailActivity.java
-│   └── HabitFilterActivity.java
+│   ├── MainActivity.java            # 主页（首页/日历/成就/我的）+ 卡片/列表
+│   ├── CreateHabitActivity.java     # 创建 / 编辑活动
+│   ├── RecordDetailActivity.java    # 记录详情数量
+│   ├── HabitFilterActivity.java     # 日历活动筛选
+│   ├── ReminderEditActivity.java    # 提醒编辑
+│   ├── AiAssistantActivity.java     # AI 助手对话（OpenAI 兼容接口）
+│   └── AiSettingsActivity.java      # AI 地址 / 模型 / API Key 设置
 ├── data/
 │   ├── model/
 │   │   ├── Habit.java
 │   │   ├── CheckInRecord.java
-│   │   └── CalendarDaySpec.java
+│   │   ├── CalendarDaySpec.java
+│   │   └── Achievement.java
 │   ├── database/
-│   │   ├── StellogDatabase.java
+│   │   ├── StellogDatabase.java     # version 3，含 2→3 迁移
 │   │   ├── HabitEntity.java
 │   │   ├── CheckInRecordEntity.java
 │   │   ├── CheckInDateCount.java
+│   │   ├── AchievementEntity.java
 │   │   ├── HabitDao.java
-│   │   └── CheckInRecordDao.java
+│   │   ├── CheckInRecordDao.java
+│   │   └── AchievementDao.java
 │   └── repository/
 │       └── HabitRepository.java
 └── util/
@@ -176,8 +185,8 @@ dateKey = year * 10000 + month * 100 + day
 
 ```java
 @Database(
-        entities = {HabitEntity.class, CheckInRecordEntity.class},
-        version = 2,
+        entities = {HabitEntity.class, CheckInRecordEntity.class, AchievementEntity.class},
+        version = 3,
         exportSchema = false
 )
 public abstract class StellogDatabase extends RoomDatabase
@@ -191,8 +200,8 @@ Room.databaseBuilder(
         StellogDatabase.class,
         "stellog.db"
 )
-        .allowMainThreadQueries()
-        .fallbackToDestructiveMigration()
+        .addMigrations(MIGRATION_2_3)
+        .fallbackToDestructiveMigration(true)
         .build();
 ```
 
@@ -200,8 +209,8 @@ Room.databaseBuilder(
 
 - 数据库文件名是 `stellog.db`。
 - 文件位于应用私有目录，通常是 `/data/data/com.example.stellog/databases/stellog.db`。
-- `allowMainThreadQueries()` 只适合当前开发阶段，后续应改为后台线程或异步架构。
-- `fallbackToDestructiveMigration()` 只适合开发阶段。数据库版本变化且没有迁移脚本时会重建数据库，旧数据会被清空。
+- 数据库操作不在主线程执行：`MainActivity` 用一个单线程 `ExecutorService` 跑数据库任务，完成后通过 `runOnUiThread` 回到界面线程刷新；`AiAssistantActivity` 的网络请求也走独立线程。
+- `MIGRATION_2_3` 为 2→3 新增 `achievements` 表；`fallbackToDestructiveMigration(true)` 作为兜底，版本变化且缺迁移脚本时会重建数据库（旧数据会被清空），正式版本应补齐迁移。
 
 ### habits 表
 
@@ -660,9 +669,47 @@ MainActivity.showRecordDetailPage(habit)
 
 ## 当前限制和后续方向
 
-- 数据库仍允许主线程查询，后续应改成后台线程、LiveData、Flow 或 ViewModel 架构。
-- 数据库迁移使用 `fallbackToDestructiveMigration()`，正式版本应补充 Migration。
+- 数据库操作已移出主线程（单线程 Executor + `runOnUiThread`），但仍未引入 LiveData/Flow/ViewModel，后续可继续架构化。
+- 数据库迁移目前只有 2→3，并保留 `fallbackToDestructiveMigration(true)` 兜底，正式版本应为每次版本变更补充迁移脚本。
 - 完成数量当前是 `long`，只支持非负整数；如果要支持小数，应改为 `double` 或其他统一存储策略。
-- 记录详情目前只支持修改今日记录，不支持选择历史日期后直接修改历史记录。
+- 提醒只保存标题与起止时间（SharedPreferences），尚未接入系统通知/AlarmManager 真正触发提醒。
 - 日历活动筛选状态目前保存在 `MainActivity` 内存中，重启应用后会恢复为默认全选。
+- 深色模式对自定义 drawable（如成就徽章）为尽力适配，个别装饰元素在深色下仍保持浅色。
 - 当前没有登录系统，`userId` 默认使用 `0`。
+
+## 新增功能说明
+
+早期 Readme 之后加入的功能与交互，简述如下。
+
+### 活动编辑与删除
+
+- 长按主页卡片或列表项弹出「编辑活动 / 删除活动」菜单。
+- 编辑复用创建页（预填名称、单位）；`HabitRepository.updateHabit` 用拷贝其余字段的新 `Habit` 替换原对象后写库（`name`/`unit` 为 `final`）。
+- 删除有二次确认，`HabitRepository.deleteHabit` 同时删除该活动及其全部打卡记录。
+
+### 提醒
+
+- 每张卡片顶部有闹铃入口，进入 `ReminderEditActivity` 为该活动设置提醒标题（默认带入活动名）、开始/结束时间，可取消或保存。
+- 保存到 SharedPreferences（`reminders`），已设提醒的卡片闹铃会高亮。
+
+### 成就系统
+
+- `Achievement` / `AchievementEntity` / `AchievementDao`，首次运行写入默认成就。
+- 创建活动、打卡后在 `HabitRepository` 中检查解锁条件（累计次数、连续天数、活动数量等），成就页（成就 Tab）展示已解锁/未解锁。
+
+### 智能推荐排序
+
+- 「我的」页开关，开启后 `HabitRepository.buildHabitPrioritySnapshots` 按近 7 天行为打分（中断风险 / 完成频率 / 连续天数加权）对首页活动排序，并在卡片给出轻量提示文案。详见 `SmartRecommendation.md`。
+
+### AI 智能助手
+
+- `AiAssistantActivity` 通过 OpenAI 兼容的 `/chat/completions` 流式接口对话，并带入本周习惯数据作为上下文。
+- `AiSettingsActivity` 可配置「API 地址 / 模型 / API Key」，默认 DeepSeek（`deepseek-chat`）；地址改为本地等自定义服务时 API Key 可留空（请求不带 Authorization）。底部「AI助手」Tab 进入。
+
+### 界面与交互
+
+- 主页卡片：单行统计（今日 / 累计）+ 推荐提示 chip；内容可在卡片内滚动避免按钮被裁剪；今日未打卡时当天圆点变红、卡片描边按今日是否完成显示淡绿/淡红。
+- 卡片下方圆点指示当前位置；新增活动按钮为右下角悬浮按钮；底部为「首页 / 日历 / AI助手 / 成就 / 我的」五个入口。
+- 列表项左侧有今日完成状态圆点。
+- 反馈与异步：创建/打卡/补打卡/记录/删除/保存提醒均有 Toast 或二次确认，加载有遮罩与按钮禁用，异常有「请重试」提示。
+- 深色模式：`StellogApp` 启动时应用偏好，「我的」页可切换 浅色 / 深色 / 跟随系统（默认浅色），配色由 `values-night` 提供。
