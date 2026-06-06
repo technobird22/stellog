@@ -5,7 +5,7 @@
     android:id="@+id/create_habit_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#EEF1EF"
+    android:background="@color/stellog_background"
     tools:context=".ui.CreateHabitActivity">
 
     <TextView
@@ -81,7 +81,7 @@
                 android:paddingEnd="0dp"
                 android:singleLine="true"
                 android:textColor="@color/stellog_ink"
-                android:textColorHint="#8F9692"
+                android:textColorHint="@color/stellog_muted"
                 android:textSize="20sp" />
         </LinearLayout>
 
@@ -114,7 +114,7 @@
                 android:paddingEnd="0dp"
                 android:singleLine="true"
                 android:textColor="@color/stellog_ink"
-                android:textColorHint="#8F9692"
+                android:textColorHint="@color/stellog_muted"
                 android:textSize="20sp" />
         </LinearLayout>
 

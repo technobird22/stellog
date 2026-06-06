@@ -35,7 +35,7 @@
             android:layout_marginTop="2dp"
             android:includeFontPadding="false"
             android:text="看书"
-            android:textColor="@color/black"
+            android:textColor="@color/stellog_ink"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:includeFontPadding="false"
                 android:text="天收获"
-                android:textColor="@color/black"
+                android:textColor="@color/stellog_ink"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -72,7 +72,7 @@
                 android:layout_marginTop="12dp"
                 android:gravity="center"
                 android:text="今日 0 · 累计 0"
-                android:textColor="#939996"
+                android:textColor="@color/stellog_muted"
                 android:textSize="15sp" />
 
             <TextView
@@ -191,7 +191,7 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="8dp"
-            android:background="#C9D0CC" />
+            android:background="@color/stellog_line" />
 
         <TextView
             android:id="@+id/today_date"
@@ -236,7 +236,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="已收获"
-                    android:textColor="#D5D8D6"
+                    android:textColor="@color/stellog_line"
                     android:textSize="18sp" />
 
                 <TextView
@@ -245,7 +245,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:text="记录详细"
-                    android:textColor="#8B918E"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="18sp" />
             </LinearLayout>
 
@@ -255,7 +255,7 @@
                 android:layout_height="34dp"
                 android:gravity="center"
                 android:text="取消"
-                android:textColor="#C4C8C6"
+                android:textColor="@color/stellog_line"
                 android:textSize="18sp" />
         </LinearLayout>
     </LinearLayout>

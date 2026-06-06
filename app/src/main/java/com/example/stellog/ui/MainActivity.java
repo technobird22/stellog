@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
@@ -63,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long DEFAULT_RECORD_VALUE = 0L;
     private static final String PREF_NAME = "main_preferences";
     private static final String KEY_SMART_RECOMMENDATION_ENABLED = "smart_recommendation_enabled";
+    private static final String KEY_NIGHT_MODE = "night_mode";
 
     private HabitRepository habitRepository;
     private List<Habit> habits;
@@ -202,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
         mainLoading = findViewById(R.id.main_loading);
         smartRecommendationEnabled = getMainPreferences().getBoolean(KEY_SMART_RECOMMENDATION_ENABLED, true);
         setupSmartRecommendationSwitch();
+        setupDarkModeEntry();
         setMainLoading(true);
 
         // 数据库操作放在单线程池中执行，避免阻塞 UI 线程。
@@ -287,6 +290,61 @@ public class MainActivity extends AppCompatActivity {
 
     private SharedPreferences getMainPreferences() {
         return getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+    }
+
+    private void setupDarkModeEntry() {
+        View entry = findViewById(R.id.dark_mode_entry);
+        if (entry == null) {
+            return;
+        }
+        updateDarkModeSubtitle();
+        entry.setOnClickListener(v -> showDarkModeDialog());
+    }
+
+    private void updateDarkModeSubtitle() {
+        TextView subtitle = findViewById(R.id.dark_mode_subtitle);
+        if (subtitle == null) {
+            return;
+        }
+        int mode = getMainPreferences().getInt(KEY_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_NO);
+        subtitle.setText(nightModeLabel(mode));
+    }
+
+    private String nightModeLabel(int mode) {
+        if (mode == AppCompatDelegate.MODE_NIGHT_YES) {
+            return "深色";
+        }
+        if (mode == AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) {
+            return "跟随系统";
+        }
+        return "浅色";
+    }
+
+    private void showDarkModeDialog() {
+        final int[] modes = {
+                AppCompatDelegate.MODE_NIGHT_NO,
+                AppCompatDelegate.MODE_NIGHT_YES,
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        };
+        String[] labels = {"浅色", "深色", "跟随系统"};
+        int current = getMainPreferences().getInt(KEY_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_NO);
+        int checked = 0;
+        for (int i = 0; i < modes.length; i++) {
+            if (modes[i] == current) {
+                checked = i;
+                break;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("深色模式")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    getMainPreferences().edit().putInt(KEY_NIGHT_MODE, modes[which]).apply();
+                    dialog.dismiss();
+                    // 切换主题会重建界面以应用新配色。
+                    AppCompatDelegate.setDefaultNightMode(modes[which]);
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void setupSmartRecommendationSwitch() {

@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#EEF1EF"
+    android:background="@color/stellog_background"
     android:clipChildren="false"
     android:clipToPadding="false"
     tools:context=".ui.MainActivity">
@@ -462,7 +462,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="围绕习惯养成与打卡复盘提问"
-                    android:textColor="#6E756F"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -491,7 +491,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="设置 API Key"
-                    android:textColor="#6E756F"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -532,7 +532,37 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="关闭后按创建顺序展示"
-                    android:textColor="#6E756F"
+                    android:textColor="@color/stellog_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/dark_mode_entry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_calendar_panel"
+                android:elevation="3dp"
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="深色模式"
+                    android:textColor="@color/stellog_ink"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/dark_mode_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="浅色"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>
@@ -570,7 +600,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="日历"
-            android:textColor="#575D5A"
+            android:textColor="@color/stellog_muted"
             android:textSize="18sp" />
 
         <TextView
@@ -580,7 +610,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="成就"
-            android:textColor="#575D5A"
+            android:textColor="@color/stellog_muted"
             android:textSize="18sp" />
 
         <TextView
@@ -590,7 +620,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="我的"
-            android:textColor="#575D5A"
+            android:textColor="@color/stellog_muted"
             android:textSize="18sp" />
     </LinearLayout>
 
