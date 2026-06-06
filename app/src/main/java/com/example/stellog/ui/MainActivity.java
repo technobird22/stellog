@@ -1,8 +1,10 @@
 package com.example.stellog.ui;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,11 +26,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
-import android.content.SharedPreferences;
-import android.text.TextUtils;
 
 import com.example.stellog.R;
 import com.example.stellog.data.model.Achievement;
@@ -60,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
 
     // 当前版本中每次打卡默认增加 1，后续可以改成用户填写的数量。
     private static final long DEFAULT_RECORD_VALUE = 0L;
+    private static final String PREF_NAME = "main_preferences";
+    private static final String KEY_SMART_RECOMMENDATION_ENABLED = "smart_recommendation_enabled";
 
     private HabitRepository habitRepository;
     private List<Habit> habits;
@@ -95,9 +98,11 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService databaseExecutor = Executors.newSingleThreadExecutor();
     private final Map<Long, CheckInRecord> todayRecordByHabitId = new HashMap<>();
     private final HashSet<String> checkedRecordDateKeys = new HashSet<>();
+    private final Map<Long, String> habitPriorityHintById = new HashMap<>();
 
     private boolean listMode = false;
     private int currentHabitPosition = 0;
+    private boolean smartRecommendationEnabled = true;
 
     // 接收“创建活动页面”返回的数据，并将其转成 Habit 加入列表。
     private final ActivityResultLauncher<Intent> createHabitLauncher =
@@ -186,6 +191,8 @@ public class MainActivity extends AppCompatActivity {
         calendarCompletionRate = findViewById(R.id.calendar_completion_rate);
         mainLoadingOverlay = findViewById(R.id.main_loading_overlay);
         mainLoading = findViewById(R.id.main_loading);
+        smartRecommendationEnabled = getMainPreferences().getBoolean(KEY_SMART_RECOMMENDATION_ENABLED, true);
+        setupSmartRecommendationSwitch();
         setMainLoading(true);
 
         // 数据库操作放在单线程池中执行，避免阻塞 UI 线程。
@@ -194,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
                 habitRepository = new HabitRepository(getApplicationContext());
                 habits = habitRepository.getHabits();
                 reloadHomeRecordStateFromDatabase();
+                sortHabitsByPriority();
 
                 runOnUiThread(() -> {
                     selectAllCalendarHabits();
@@ -266,6 +274,54 @@ public class MainActivity extends AppCompatActivity {
         button.setEnabled(!loading);
         button.setAlpha(loading ? 0.65f : 1f);
         button.setText(text);
+    }
+
+    private SharedPreferences getMainPreferences() {
+        return getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+    }
+
+    private void setupSmartRecommendationSwitch() {
+        SwitchCompat smartRecommendationSwitch = findViewById(R.id.smart_recommendation_switch);
+        if (smartRecommendationSwitch == null) {
+            return;
+        }
+
+        smartRecommendationSwitch.setChecked(smartRecommendationEnabled);
+        smartRecommendationSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (smartRecommendationEnabled == isChecked) {
+                return;
+            }
+
+            smartRecommendationEnabled = isChecked;
+            getMainPreferences()
+                    .edit()
+                    .putBoolean(KEY_SMART_RECOMMENDATION_ENABLED, isChecked)
+                    .apply();
+
+            executeDatabaseTask(() -> {
+                if (habitRepository == null || habits == null) {
+                    return;
+                }
+
+                sortHabitsByPriority();
+                runOnUiThread(() -> {
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+                    if (!habits.isEmpty()) {
+                        int targetPosition = Math.max(0, Math.min(currentHabitPosition, habits.size() - 1));
+                        habitPager.setCurrentItem(targetPosition, false);
+                        updateHeader(targetPosition);
+                    } else {
+                        updateHeader(0);
+                    }
+                    Toast.makeText(
+                            this,
+                            isChecked ? "已开启智能推荐排序" : "已关闭智能推荐排序",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                });
+            });
+        });
     }
 
     private void selectAllCalendarHabits() {
@@ -724,6 +780,49 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void sortHabitsByPriority() {
+        if (habitRepository == null || habits == null || habits.size() <= 1) {
+            return;
+        }
+
+        if (!smartRecommendationEnabled) {
+            habitPriorityHintById.clear();
+            habits.sort((left, right) -> Long.compare(left.id, right.id));
+            return;
+        }
+
+        List<HabitRepository.HabitPrioritySnapshot> snapshots = habitRepository.buildHabitPrioritySnapshots();
+        if (snapshots.isEmpty()) {
+            return;
+        }
+
+        Map<Long, HabitRepository.HabitPrioritySnapshot> snapshotByHabitId = new HashMap<>();
+        habitPriorityHintById.clear();
+        for (HabitRepository.HabitPrioritySnapshot snapshot : snapshots) {
+            snapshotByHabitId.put(snapshot.habitId, snapshot);
+            habitPriorityHintById.put(snapshot.habitId, snapshot.hint);
+        }
+
+        habits.sort((left, right) -> {
+            HabitRepository.HabitPrioritySnapshot leftSnapshot = snapshotByHabitId.get(left.id);
+            HabitRepository.HabitPrioritySnapshot rightSnapshot = snapshotByHabitId.get(right.id);
+
+            double leftScore = leftSnapshot == null ? 0.0 : leftSnapshot.score;
+            double rightScore = rightSnapshot == null ? 0.0 : rightSnapshot.score;
+            int scoreCompare = Double.compare(rightScore, leftScore);
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+
+            return Long.compare(left.id, right.id);
+        });
+    }
+
+    private String getPriorityHint(long habitId) {
+        String hint = habitPriorityHintById.get(habitId);
+        return hint == null ? "" : hint;
+    }
+
     private String getRecordCacheKey(long habitId, CheckInRecord.RecordDate date) {
         return habitId + ":" + DateUtils.toDateKey(date);
     }
@@ -1044,13 +1143,18 @@ public class MainActivity extends AppCompatActivity {
             List<Achievement> unlockedAchievements =
                 habitRepository.checkAchievementsAfterHabitCreated();
             reloadHomeRecordStateFromDatabase();
+            sortHabitsByPriority();
 
             runOnUiThread(() -> {
                 selectedCalendarHabitIds.add(habit.id);
                 updateCalendarFilterLabel();
-                int newPosition = habits.size() - 1;
-                habitAdapter.notifyItemInserted(newPosition);
-                habitListAdapter.notifyItemInserted(newPosition);
+                habitAdapter.notifyDataSetChanged();
+                habitListAdapter.notifyDataSetChanged();
+
+                int newPosition = habitRepository.findHabitPosition(habit.id);
+                if (newPosition < 0) {
+                    newPosition = 0;
+                }
 
                 //创建完成后自动定位到新活动卡片
                 habitPager.setCurrentItem(newPosition, true);
@@ -1100,6 +1204,7 @@ public class MainActivity extends AppCompatActivity {
                 final List<Achievement> unlockedAchievements;
                 if (success) {
                     reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
                     unlockedAchievements = habitRepository.checkAchievementsAfterCheckIn(
                         habit.id,
                         CheckInRecord.RecordDate.today(),
@@ -1112,7 +1217,14 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     setActionButtonLoading(actionButton, false, "\u6253\u5361");
                     if (success) {
-                        refreshHabitUi(habit);
+                        habitAdapter.notifyDataSetChanged();
+                        habitListAdapter.notifyDataSetChanged();
+                        int position = habitRepository.findHabitPosition(habit.id);
+                        if (position >= 0) {
+                            currentHabitPosition = position;
+                            habitPager.setCurrentItem(position, false);
+                            updateHeader(position);
+                        }
                         loadCalendarDataAndRender(false);
                         Toast.makeText(this, "打卡成功", Toast.LENGTH_SHORT).show();
                         handleUnlockedAchievements(unlockedAchievements);
@@ -1198,6 +1310,7 @@ public class MainActivity extends AppCompatActivity {
                             source
                     );
                     reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
                 } else {
                     unlockedAchievements = new ArrayList<>();
                 }
@@ -1207,6 +1320,12 @@ public class MainActivity extends AppCompatActivity {
                     if (success) {
                         habitAdapter.notifyDataSetChanged();
                         habitListAdapter.notifyDataSetChanged();
+                        int position = habitRepository.findHabitPosition(habit.id);
+                        if (position >= 0) {
+                            currentHabitPosition = position;
+                            habitPager.setCurrentItem(position, false);
+                            updateHeader(position);
+                        }
                         loadCalendarDataAndRender(false);
                         handleUnlockedAchievements(unlockedAchievements);
                         Toast.makeText(this, "\u6253\u5361\u6210\u529f", Toast.LENGTH_SHORT).show();
@@ -1244,12 +1363,20 @@ public class MainActivity extends AppCompatActivity {
                 boolean success = habitRepository.cancelTodayCheckIn(habit);
                 if (success) {
                     reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
                 }
 
                 runOnUiThread(() -> {
                     setActionButtonLoading(actionButton, false, "\u53d6\u6d88");
                     if (success) {
-                        refreshHabitUi(habit);
+                        habitAdapter.notifyDataSetChanged();
+                        habitListAdapter.notifyDataSetChanged();
+                        int position = habitRepository.findHabitPosition(habit.id);
+                        if (position >= 0) {
+                            currentHabitPosition = position;
+                            habitPager.setCurrentItem(position, false);
+                            updateHeader(position);
+                        }
                         loadCalendarDataAndRender(false);
                         Toast.makeText(this, "\u5df2\u53d6\u6d88\u6253\u5361", Toast.LENGTH_SHORT).show();
                     } else {
@@ -1350,13 +1477,18 @@ public class MainActivity extends AppCompatActivity {
                 boolean success = habitRepository.applyRecordDetailValue(habitId, recordDate, newValue);
                 if (success) {
                     reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
                 }
 
                 runOnUiThread(() -> {
                     if (success) {
-                        if (habitPosition >= 0) {
-                            habitAdapter.notifyItemChanged(habitPosition);
-                            habitListAdapter.notifyItemChanged(habitPosition);
+                        habitAdapter.notifyDataSetChanged();
+                        habitListAdapter.notifyDataSetChanged();
+                        int position = habitRepository.findHabitPosition(habitId);
+                        if (position >= 0) {
+                            currentHabitPosition = position;
+                            habitPager.setCurrentItem(position, false);
+                            updateHeader(position);
                         }
                         loadCalendarDataAndRender(false);
                         Toast.makeText(this, "\u8bb0\u5f55\u5df2\u4fdd\u5b58", Toast.LENGTH_SHORT).show();
@@ -1423,9 +1555,14 @@ public class MainActivity extends AppCompatActivity {
 
             void bind(Habit habit, int position) {
                 boolean checkedInToday = getTodayRecord(habit.id) != null;
+                String priorityHint = getPriorityHint(habit.id);
 
                 habitName.setText(habit.name);
-                recordCount.setText(String.format(Locale.CHINA, "\u7d2f\u8ba1\u6253\u5361 %d \u5929", habit.recordNum));
+                if (priorityHint.isEmpty()) {
+                    recordCount.setText(String.format(Locale.CHINA, "\u7d2f\u8ba1\u6253\u5361 %d \u5929", habit.recordNum));
+                } else {
+                    recordCount.setText(String.format(Locale.CHINA, "\u7d2f\u8ba1\u6253\u5361 %d \u5929 \u00b7 %s", habit.recordNum, priorityHint));
+                }
 
                 if (checkedInToday) {
                     checkStatus.setText("\u5df2\u6253\u5361");
@@ -1441,6 +1578,7 @@ public class MainActivity extends AppCompatActivity {
                         checkInToday(habit, checkStatus);
                     });
                 }
+
             }
         }
     }
@@ -1515,6 +1653,7 @@ public class MainActivity extends AppCompatActivity {
                 // 找到当前 habit 今天的打卡记录
                 CheckInRecord todayRecord = getTodayRecord(habit.id);
                 boolean checkedInToday = todayRecord != null;
+                String priorityHint = getPriorityHint(habit.id);
 
                 // 此日计显示今天这条 record 的 value，而不是默认值
                 long todayValue = todayRecord == null ? 0 : todayRecord.value;
@@ -1522,13 +1661,17 @@ public class MainActivity extends AppCompatActivity {
                 habitName.setText(habit.name);
                 streakValue.setText(String.valueOf(habit.recordNum));
                 streakValue.setTextColor(primaryColor);
-                targetSummary.setText(getString(
+                String summary = getString(
                         R.string.habit_target_summary,
                         todayValue,
                         habit.unit,
                         habit.totalValue,
                         habit.unit
-                ));
+                );
+                if (!priorityHint.isEmpty()) {
+                    summary = summary + "\n" + priorityHint;
+                }
+                targetSummary.setText(summary);
                 todayDate.setText(getString(R.string.today_date_format, getTodayDateString()));
                 todayDate.setTextColor(primaryColor);
 
