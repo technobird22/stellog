@@ -633,9 +633,11 @@ public class MainActivity extends AppCompatActivity {
     private void openAiAssistantOrSettings() {
         SharedPreferences preferences = getSharedPreferences(AiSettingsActivity.PREF_NAME, MODE_PRIVATE);
         String apiKey = preferences.getString(AiSettingsActivity.KEY_API_KEY, "");
+        String apiUrl = preferences.getString(AiSettingsActivity.KEY_API_URL, AiSettingsActivity.DEFAULT_API_URL);
 
-        if (TextUtils.isEmpty(apiKey)) {
-            Toast.makeText(this, "请先设置 API Key", Toast.LENGTH_SHORT).show();
+        // 默认 DeepSeek 地址需要 API Key；自定义（如本地）地址允许留空。
+        if (apiUrl.equals(AiSettingsActivity.DEFAULT_API_URL) && TextUtils.isEmpty(apiKey)) {
+            Toast.makeText(this, "请先在 AI 设置中填写 API Key", Toast.LENGTH_SHORT).show();
             Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
             startActivity(intent);
             return;

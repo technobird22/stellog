@@ -34,9 +34,6 @@ import java.util.concurrent.Executors;
 
 public class AiAssistantActivity extends AppCompatActivity {
 
-    private static final String API_URL = "https://api.deepseek.com/chat/completions";
-    private static final String MODEL = "deepseek-chat";
-
     private EditText messageInput;
     private TextView sendButton;
     private LinearLayout chatMessages;
@@ -97,8 +94,11 @@ public class AiAssistantActivity extends AppCompatActivity {
         }
 
         String apiKey = getApiKey();
-        if (TextUtils.isEmpty(apiKey)) {
-            Toast.makeText(this, "请先设置 API Key", Toast.LENGTH_SHORT).show();
+        String apiUrl = getApiUrl();
+        String model = getModel();
+        // 默认 DeepSeek 地址需要 API Key；自定义（如本地）地址允许留空。
+        if (apiUrl.equals(AiSettingsActivity.DEFAULT_API_URL) && TextUtils.isEmpty(apiKey)) {
+            Toast.makeText(this, "请先在 AI 设置中填写 API Key", Toast.LENGTH_SHORT).show();
             startActivity(new Intent(this, AiSettingsActivity.class));
             return;
         }
@@ -112,7 +112,7 @@ public class AiAssistantActivity extends AppCompatActivity {
 
         aiExecutor.execute(() -> {
             try {
-                requestAiReply(apiKey, userText, aiBubble);
+                requestAiReply(apiUrl, model, apiKey, userText, aiBubble);
 
                 runOnUiThread(() -> {
                     sendButton.setEnabled(true);
@@ -133,7 +133,17 @@ public class AiAssistantActivity extends AppCompatActivity {
         return preferences.getString(AiSettingsActivity.KEY_API_KEY, "");
     }
 
-    private String requestAiReply(String apiKey, String userText, TextView aiBubble) throws Exception {
+    private String getApiUrl() {
+        SharedPreferences preferences = getSharedPreferences(AiSettingsActivity.PREF_NAME, MODE_PRIVATE);
+        return preferences.getString(AiSettingsActivity.KEY_API_URL, AiSettingsActivity.DEFAULT_API_URL);
+    }
+
+    private String getModel() {
+        SharedPreferences preferences = getSharedPreferences(AiSettingsActivity.PREF_NAME, MODE_PRIVATE);
+        return preferences.getString(AiSettingsActivity.KEY_MODEL, AiSettingsActivity.DEFAULT_MODEL);
+    }
+
+    private String requestAiReply(String apiUrl, String model, String apiKey, String userText, TextView aiBubble) throws Exception {
         JSONObject userMessage = new JSONObject();
         userMessage.put("role", "user");
         userMessage.put("content", userText);
@@ -151,17 +161,20 @@ public class AiAssistantActivity extends AppCompatActivity {
         }
 
         JSONObject body = new JSONObject();
-        body.put("model", MODEL);
+        body.put("model", model);
         body.put("messages", messages);
         body.put("stream", true);
 
-        URL url = new URL(API_URL);
+        URL url = new URL(apiUrl);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(60000);
         connection.setDoOutput(true);
-        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+        // 本地模型可不需要 API Key，留空时不发送 Authorization 头。
+        if (!TextUtils.isEmpty(apiKey)) {
+            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+        }
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Accept", "text/event-stream");
 
