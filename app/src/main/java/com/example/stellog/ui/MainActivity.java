@@ -1717,8 +1717,8 @@ public class MainActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("\u786e\u8ba4\u53d6\u6d88\u6253\u5361")
                 .setMessage("\u786e\u5b9a\u53d6\u6d88\u4eca\u65e5\u6253\u5361\u5417\uff1f")
-                .setNegativeButton("\u53d6\u6d88", null)
-                .setPositiveButton("\u786e\u5b9a", (dialog, which) ->
+                .setNegativeButton("\u5426", null)
+                .setPositiveButton("\u662f", (dialog, which) ->
                         performCancelTodayCheckIn(habit, actionButton)
                 )
                 .show();

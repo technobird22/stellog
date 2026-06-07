@@ -256,12 +256,16 @@
 
                     <TextView
                         android:id="@+id/cancel_check_in_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="34dp"
+                        android:layout_width="140dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_cancel_button"
                         android:gravity="center"
-                        android:text="取消"
-                        android:textColor="@color/stellog_muted"
-                        android:textSize="18sp" />
+                        android:text="取消打卡"
+                        android:textColor="@color/stellog_danger"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

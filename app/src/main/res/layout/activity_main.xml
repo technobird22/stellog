@@ -438,35 +438,26 @@
                     android:text="最长连续    0 天"
                     android:textColor="@color/stellog_ink"
                     android:textSize="16sp" />
-            </LinearLayout>
 
-            <LinearLayout
-                android:id="@+id/clear_data_button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/bg_calendar_panel"
-                android:elevation="3dp"
-                android:orientation="vertical"
-                android:padding="20dp"
-                android:clickable="true"
-                android:focusable="true">
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@color/stellog_line" />
 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:id="@+id/clear_data_button"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="6dp"
+                    android:background="@drawable/bg_cancel_button"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
                     android:text="清空数据"
                     android:textColor="@color/stellog_danger"
-                    android:textSize="20sp"
+                    android:textSize="16sp"
                     android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="删除全部活动、打卡记录并重置成就"
-                    android:textColor="@color/stellog_muted"
-                    android:textSize="14sp" />
             </LinearLayout>
 
             <LinearLayout
@@ -493,7 +484,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="设置 API Key"
+                    android:text="设置 API 地址、模型与 Key"
                     android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
