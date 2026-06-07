@@ -64,6 +64,73 @@ public class HabitRepository {
         return habits;
     }
 
+    public static class AccountStats {
+        public final int habitCount;
+        public final int totalRecords;
+        public final int longestStreak;
+
+        public AccountStats(int habitCount, int totalRecords, int longestStreak) {
+            this.habitCount = habitCount;
+            this.totalRecords = totalRecords;
+            this.longestStreak = longestStreak;
+        }
+    }
+
+    // 我的页“账户数据”：活动数量、累计打卡次数、历史最长连续天数。
+    public AccountStats getAccountStats() {
+        int habitCount = habits.size();
+        int totalRecords = checkInRecordDao.countAll();
+        int longestStreak = 0;
+        for (Habit habit : habits) {
+            int streak = longestStreakForHabit(habit.id);
+            if (streak > longestStreak) {
+                longestStreak = streak;
+            }
+        }
+        return new AccountStats(habitCount, totalRecords, longestStreak);
+    }
+
+    // 把某习惯的打卡日期转成连续天序号，求最长连续段。
+    private int longestStreakForHabit(long habitId) {
+        List<Integer> dateKeys = checkInRecordDao.findDateKeysByHabit(habitId);
+        if (dateKeys.isEmpty()) {
+            return 0;
+        }
+
+        java.util.TreeSet<Long> days = new java.util.TreeSet<>();
+        for (int dateKey : dateKeys) {
+            days.add(dateKeyToEpochDay(dateKey));
+        }
+
+        int longest = 1;
+        int current = 1;
+        Long previous = null;
+        for (long day : days) {
+            if (previous != null) {
+                current = day == previous + 1 ? current + 1 : 1;
+            }
+            if (current > longest) {
+                longest = current;
+            }
+            previous = day;
+        }
+        return longest;
+    }
+
+    // 年月日转连续天序号（civil -> epoch day），避免时区和跨月影响连续判断。
+    private long dateKeyToEpochDay(int dateKey) {
+        int year = dateKey / 10000;
+        int month = (dateKey / 100) % 100;
+        int day = dateKey % 100;
+
+        int y = year - (month <= 2 ? 1 : 0);
+        long era = (y >= 0 ? y : y - 399) / 400;
+        long yoe = y - era * 400;
+        long doy = (153L * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+        long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        return era * 146097 + doe - 719468;
+    }
+
     public List<Achievement> getAchievements() {
         List<Achievement> achievements = new ArrayList<>();
         List<AchievementEntity> entities = achievementDao.getAll();
@@ -123,6 +190,19 @@ public class HabitRepository {
         habitDao.update(HabitEntity.fromModel(updated));
         habits.set(index, updated);
         return updated;
+    }
+
+    // 删除活动，并一并清除它的全部打卡记录。
+    public boolean deleteHabit(long habitId) {
+        int index = findHabitPosition(habitId);
+        if (index < 0) {
+            return false;
+        }
+
+        checkInRecordDao.deleteByHabitId(habitId);
+        habitDao.deleteById(habitId);
+        habits.remove(index);
+        return true;
     }
 
     public CheckInRecord getTodayRecord(long habitId) {
@@ -408,13 +488,16 @@ public class HabitRepository {
 
             double completionRate = recentCheckInDays / 7.0;
             double interruptionRisk = recentGapDays / 7.0;
-            double streakScore = Math.min(streakDays, 14) / 14.0;
 
             // TODO: 接入提醒时间后，可增加“临近提醒时间”因子并参与加权。
             double riskAdjustedByActivity = interruptionRisk * (0.4 + 0.6 * completionRate);
-            double score = riskAdjustedByActivity * 0.45
-                    + completionRate * 0.35
-                    + streakScore * 0.20;
+
+            // 排序优先级：今日未打卡的活动始终排在已完成的前面（0.5 基准把两组分开），
+            // 组内再按中断风险排序（漏打越多越靠前），并对“仍在坚持但开始漏打”的活动略作加权。
+            boolean doneToday = checkedDates.contains(endDateKey);
+            double score = (doneToday ? 0.0 : 1.0) * 0.5
+                    + interruptionRisk * 0.3
+                    + riskAdjustedByActivity * 0.2;
 
             snapshots.add(new HabitPrioritySnapshot(habit.id, score, buildPriorityHint(
                     recentCheckInDays,
@@ -452,119 +535,88 @@ public class HabitRepository {
         return "保持当前节奏";
     }
 
-    public String buildCurrentWeekAiContextPrompt() {
+    public String buildAiContextPrompt() {
         List<CheckInRecord.RecordDate> weekDates = DateUtils.getCurrentWeekDates();
         if (weekDates.isEmpty()) {
-            return "本周数据暂时不可用。";
+            return "数据暂时不可用。";
         }
 
         CheckInRecord.RecordDate startDate = weekDates.get(0);
         CheckInRecord.RecordDate endDate = weekDates.get(weekDates.size() - 1);
-
         int startDateKey = DateUtils.toDateKey(startDate);
         int endDateKey = DateUtils.toDateKey(endDate);
+        int todayDateKey = DateUtils.toDateKey(CheckInRecord.RecordDate.today());
 
         List<HabitEntity> habitEntities = habitDao.getAll();
-        List<CheckInRecordEntity> recordEntities = checkInRecordDao.findByDateRange(startDateKey, endDateKey);
+        List<CheckInRecordEntity> weekRecords = checkInRecordDao.findByDateRange(startDateKey, endDateKey);
 
-        Map<Long, HabitEntity> habitById = new HashMap<>();
-        for (HabitEntity habit : habitEntities) {
-            habitById.put(habit.id, habit);
-        }
+        Map<Long, Integer> weeklyCount = new HashMap<>();
+        Map<Long, Long> weeklyValue = new HashMap<>();
+        Map<Long, Integer> normalCount = new HashMap<>();
+        Map<Long, Integer> patchCount = new HashMap<>();
+        Map<Long, Boolean> doneToday = new HashMap<>();
 
-        Map<Long, Integer> weeklyCountByHabit = new HashMap<>();
-        Map<Long, Long> weeklyValueByHabit = new HashMap<>();
-        Map<Long, Integer> normalCountByHabit = new HashMap<>();
-        Map<Long, Integer> patchCountByHabit = new HashMap<>();
-
-        for (CheckInRecordEntity record : recordEntities) {
-            long habitId = record.habitId;
-
-            weeklyCountByHabit.put(
-                    habitId,
-                    weeklyCountByHabit.getOrDefault(habitId, 0) + 1
-            );
-
-            weeklyValueByHabit.put(
-                    habitId,
-                    weeklyValueByHabit.getOrDefault(habitId, 0L) + record.value
-            );
-
+        for (CheckInRecordEntity record : weekRecords) {
+            long id = record.habitId;
+            weeklyCount.put(id, weeklyCount.getOrDefault(id, 0) + 1);
+            weeklyValue.put(id, weeklyValue.getOrDefault(id, 0L) + record.value);
             if (CheckInRecord.SOURCE_NORMAL.equals(record.source)) {
-                normalCountByHabit.put(
-                        habitId,
-                        normalCountByHabit.getOrDefault(habitId, 0) + 1
-                );
+                normalCount.put(id, normalCount.getOrDefault(id, 0) + 1);
             } else if (CheckInRecord.SOURCE_PATCH.equals(record.source)) {
-                patchCountByHabit.put(
-                        habitId,
-                        patchCountByHabit.getOrDefault(habitId, 0) + 1
-                );
+                patchCount.put(id, patchCount.getOrDefault(id, 0) + 1);
+            }
+            if (record.dateKey == todayDateKey) {
+                doneToday.put(id, true);
             }
         }
 
-        int totalHabitCount = habitEntities.size();
-        int totalRecordCount = recordEntities.size();
+        AccountStats stats = getAccountStats();
 
         StringBuilder prompt = new StringBuilder();
-        prompt.append("以下是用户本周习惯数据，请你基于这些数据回答用户问题。");
-        prompt.append("如果用户问题与数据无关，也可以正常回答，但不要编造不存在的打卡记录。\n\n");
+        prompt.append("以下是用户的习惯打卡数据，请基于这些数据回答用户问题，不要编造不存在的记录。\n\n");
+        prompt.append("今日日期：").append(formatDate(CheckInRecord.RecordDate.today())).append("\n");
+        prompt.append("本周范围：").append(formatDate(startDate)).append(" 至 ").append(formatDate(endDate)).append("\n");
+        prompt.append("活动总数：").append(stats.habitCount).append(" 个；")
+                .append("累计打卡：").append(stats.totalRecords).append(" 次；")
+                .append("历史最长连续：").append(stats.longestStreak).append(" 天\n\n");
 
-        prompt.append("本周范围：")
-                .append(formatDate(startDate))
-                .append(" 至 ")
-                .append(formatDate(endDate))
-                .append("\n");
-
-        prompt.append("用户当前活动数量：")
-                .append(totalHabitCount)
-                .append(" 个\n");
-
-        prompt.append("本周总打卡次数：")
-                .append(totalRecordCount)
-                .append(" 次\n\n");
-
-        prompt.append("各活动本周情况：\n");
-
+        prompt.append("各活动情况：\n");
         if (habitEntities.isEmpty()) {
             prompt.append("- 用户还没有创建活动。\n");
         } else {
             for (HabitEntity habit : habitEntities) {
-                int weekCount = weeklyCountByHabit.getOrDefault(habit.id, 0);
-                long weekValue = weeklyValueByHabit.getOrDefault(habit.id, 0L);
-                int normalCount = normalCountByHabit.getOrDefault(habit.id, 0);
-                int patchCount = patchCountByHabit.getOrDefault(habit.id, 0);
+                String unit = habit.unit == null ? "" : habit.unit;
+                int week = weeklyCount.getOrDefault(habit.id, 0);
+                long weekVal = weeklyValue.getOrDefault(habit.id, 0L);
+                int normal = normalCount.getOrDefault(habit.id, 0);
+                int patch = patchCount.getOrDefault(habit.id, 0);
+                boolean today = doneToday.getOrDefault(habit.id, false);
 
-                prompt.append("- ")
-                        .append(habit.name)
-                        .append("：本周打卡 ")
-                        .append(weekCount)
-                        .append(" 次");
-
-                if (weekValue > 0) {
-                    prompt.append("，记录值合计 ")
-                            .append(weekValue)
-                            .append(habit.unit == null ? "" : habit.unit);
+                prompt.append("- ").append(habit.name);
+                if (!unit.isEmpty()) {
+                    prompt.append("（单位：").append(unit).append("）");
                 }
-
-                prompt.append("，正常打卡 ")
-                        .append(normalCount)
-                        .append(" 次，补打卡 ")
-                        .append(patchCount)
-                        .append(" 次");
-
-                if (weekCount == 0) {
-                    prompt.append("，本周尚未完成");
+                prompt.append("：累计打卡 ").append(habit.recordNum).append(" 次");
+                if (habit.totalValue > 0) {
+                    prompt.append("，累计完成 ").append(habit.totalValue).append(unit);
                 }
-
+                prompt.append("；本周 ").append(week).append(" 次（正常 ").append(normal)
+                        .append("、补打卡 ").append(patch).append("）");
+                if (weekVal > 0) {
+                    prompt.append("，本周合计 ").append(weekVal).append(unit);
+                }
+                prompt.append("；今日").append(today ? "已打卡" : "未打卡");
+                if (week == 0) {
+                    prompt.append("；本周尚未完成");
+                }
                 prompt.append("\n");
             }
         }
 
         prompt.append("\n回答要求：");
-        prompt.append("1. 使用中文。");
-        prompt.append("2. 回答要简洁、具体、鼓励用户继续行动。");
-        prompt.append("3. 如果发现某个活动本周 0 次打卡，可以温和提醒。");
+        prompt.append("1. 使用中文，简洁、具体、鼓励行动。");
+        prompt.append("2. 可结合以上数据给出个性化建议（更合理的打卡时间、可能中断的习惯、鼓励或优化建议）。");
+        prompt.append("3. 某活动近期 0 次打卡时可温和提醒。");
         prompt.append("4. 不要声称知道用户没有提供的数据。");
 
         return prompt.toString();

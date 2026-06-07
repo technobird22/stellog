@@ -45,7 +45,7 @@
         android:paddingTop="24dp"
         android:paddingEnd="22dp"
         android:paddingBottom="18dp"
-        app:layout_constraintBottom_toTopOf="@id/ai_input_bar"
+        app:layout_constraintBottom_toTopOf="@id/ai_quick_actions"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/ai_assistant_title">
@@ -64,6 +64,46 @@
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
+
+    <HorizontalScrollView
+        android:id="@+id/ai_quick_actions"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:paddingStart="22dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="22dp"
+        android:paddingBottom="10dp"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toTopOf="@id/ai_input_bar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/ai_chip_review"
+                style="@style/AiChip"
+                android:text="本周复盘" />
+
+            <TextView
+                android:id="@+id/ai_chip_risk"
+                style="@style/AiChip"
+                android:text="中断风险" />
+
+            <TextView
+                android:id="@+id/ai_chip_time"
+                style="@style/AiChip"
+                android:text="打卡时间" />
+
+            <TextView
+                android:id="@+id/ai_chip_encourage"
+                style="@style/AiChip"
+                android:text="鼓励一下" />
+        </LinearLayout>
+    </HorizontalScrollView>
 
     <LinearLayout
         android:id="@+id/ai_input_bar"

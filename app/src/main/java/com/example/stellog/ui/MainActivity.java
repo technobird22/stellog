@@ -799,8 +799,31 @@ public class MainActivity extends AppCompatActivity {
         calendarContent.setVisibility(View.GONE);
         achievementContent.setVisibility(View.GONE);
         profileContent.setVisibility(View.VISIBLE);
+        bindAccountStats();
 
         selectBottomTab(profileTab);
+    }
+
+    // 在后台计算账户数据并回填到“我的”页。
+    private void bindAccountStats() {
+        if (habitRepository == null) {
+            return;
+        }
+        executeDatabaseTask(() -> {
+            try {
+                HabitRepository.AccountStats stats = habitRepository.getAccountStats();
+                runOnUiThread(() -> {
+                    ((TextView) findViewById(R.id.account_habit_count))
+                            .setText(String.format(Locale.CHINA, "创建活动    %d", stats.habitCount));
+                    ((TextView) findViewById(R.id.account_total_records))
+                            .setText(String.format(Locale.CHINA, "累计记录    %d", stats.totalRecords));
+                    ((TextView) findViewById(R.id.account_longest_streak))
+                            .setText(String.format(Locale.CHINA, "最长连续    %d 天", stats.longestStreak));
+                });
+            } catch (Exception ignored) {
+                // 账户数据展示失败不影响其他功能。
+            }
+        });
     }
 
     private void hideHomeViews() {
@@ -1382,6 +1405,66 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    // 长按活动弹出操作菜单：编辑或删除。
+    private void showHabitOptionsMenu(Habit habit) {
+        new AlertDialog.Builder(this)
+                .setTitle(habit.name)
+                .setItems(new String[]{"编辑活动", "删除活动"}, (dialog, which) -> {
+                    if (which == 0) {
+                        openEditHabit(habit);
+                    } else {
+                        confirmDeleteHabit(habit);
+                    }
+                })
+                .show();
+    }
+
+    private void confirmDeleteHabit(Habit habit) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除活动")
+                .setMessage(String.format(Locale.CHINA, "确定删除「%s」吗？该活动的打卡记录也会一并删除。", habit.name))
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> deleteHabit(habit))
+                .show();
+    }
+
+    private void deleteHabit(Habit habit) {
+        executeDatabaseTask(() -> {
+            try {
+                boolean success = habitRepository.deleteHabit(habit.id);
+                if (success) {
+                    reloadHomeRecordStateFromDatabase();
+                    sortHabitsByPriority();
+                }
+
+                runOnUiThread(() -> {
+                    if (!success) {
+                        Toast.makeText(this, "删除失败，请重试", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    selectedCalendarHabitIds.remove(habit.id);
+                    updateCalendarFilterLabel();
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+
+                    int position = Math.max(0, Math.min(currentHabitPosition, Math.max(0, habits.size() - 1)));
+                    currentHabitPosition = position;
+                    if (!habits.isEmpty()) {
+                        habitPager.setCurrentItem(position, false);
+                    }
+                    updateHeader(position);
+                    updateEmptyState();
+                    loadCalendarDataAndRender(false);
+                    Toast.makeText(this, "活动已删除", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "删除失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
     private void updateHeader(int position) {
         renderPageDots();
     }
@@ -1802,7 +1885,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // 长按列表项编辑活动。
                 itemView.setOnLongClickListener(v -> {
-                    openEditHabit(habit);
+                    showHabitOptionsMenu(habit);
                     return true;
                 });
 
@@ -1935,7 +2018,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // 长按卡片编辑活动。
                 itemView.findViewById(R.id.card_body).setOnLongClickListener(v -> {
-                    openEditHabit(habit);
+                    showHabitOptionsMenu(habit);
                     return true;
                 });
 
@@ -1950,6 +2033,11 @@ public class MainActivity extends AppCompatActivity {
                 reminderButton.setOnClickListener(v -> openReminderEditor(habit));
 
                 bindWeekDots(habit.id);
+
+                // 点击本周打卡情况区域进入日历页面。
+                View.OnClickListener openCalendar = v -> showCalendarPage();
+                itemView.findViewById(R.id.week_labels).setOnClickListener(openCalendar);
+                itemView.findViewById(R.id.week_checks).setOnClickListener(openCalendar);
 
                 // 未打卡时显示“打卡”按钮；已打卡后显示“记录详细 / 取消”操作区。
                 checkInButton.setVisibility(checkedInToday ? View.GONE : View.VISIBLE);

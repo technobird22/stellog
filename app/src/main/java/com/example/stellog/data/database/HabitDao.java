@@ -50,4 +50,8 @@ public interface HabitDao {
 
     @Query("UPDATE habits SET reminderEnabled = :enabled, reminderTimeMinutes = :minutes, updatedAt = :updatedAt WHERE id = :habitId")
     void updateReminder(long habitId, boolean enabled, int minutes, long updatedAt);
+
+    // 删除活动。
+    @Query("DELETE FROM habits WHERE id = :habitId")
+    void deleteById(long habitId);
 }

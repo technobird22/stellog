@@ -413,7 +413,7 @@
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/profile_habit_count"
+                    android:id="@+id/account_habit_count"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"
@@ -422,7 +422,7 @@
                     android:textSize="16sp" />
 
                 <TextView
-                    android:id="@+id/profile_total_records"
+                    android:id="@+id/account_total_records"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"
@@ -431,7 +431,7 @@
                     android:textSize="16sp" />
 
                 <TextView
-                    android:id="@+id/profile_max_streak"
+                    android:id="@+id/account_longest_streak"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"

@@ -13,10 +13,14 @@
 ### 2.1 评分公式
 
 $$
-score = 0.45 \cdot riskAdjustedByActivity + 0.35 \cdot completionRate + 0.20 \cdot streakScore
+score = 0.5 \cdot notDoneToday + 0.3 \cdot interruptionRisk + 0.2 \cdot riskAdjustedByActivity
 $$
 
 其中：
+
+$$
+notDoneToday = \begin{cases} 1 & \text{今日尚未打卡} \\ 0 & \text{今日已打卡} \end{cases}
+$$
 
 $$
 completionRate = \frac{recentCheckInDays}{7}
@@ -27,33 +31,29 @@ interruptionRisk = \frac{recentGapDays}{7}
 $$
 
 $$
-streakScore = \frac{\min(streakDays, 14)}{14}
-$$
-
-$$
 riskAdjustedByActivity = interruptionRisk \cdot (0.4 + 0.6 \cdot completionRate)
 $$
 
 ### 2.2 各项含义
 
-- `recentCheckInDays`：最近 7 天内有记录的天数。
-- `recentGapDays`：最近 7 天内缺失打卡的天数。
-- `streakDays`：从今天往前连续打卡的天数。
-- `completionRate`：近期完成频率，反映活跃程度。
-- `interruptionRisk`：近期中断风险，漏打越多风险越高。
-- `streakScore`：连续坚持表现，连续越久分数越高，但做了上限截断，避免长期连续把其他因素完全压住。
-- `riskAdjustedByActivity`：把“风险”和“活跃度”合并，优先把更需要关注且仍有行动基础的习惯排在前面。
+- `notDoneToday`：今日是否还没打卡，是排序的主因素。
+- `recentCheckInDays` / `recentGapDays`：最近 7 天内有记录 / 缺失打卡的天数。
+- `completionRate`：近期完成频率（等于 `1 − interruptionRisk`）。
+- `interruptionRisk`：近期中断风险，漏打越多越高。
+- `riskAdjustedByActivity`：把“风险”和“活跃度”合并，对“仍在坚持但开始漏打”的习惯略作加权。
 
 ### 2.3 公式理由
 
-- `riskAdjustedByActivity` 权重最高，因为它最能体现“需要优先关注”的习惯。
-- `completionRate` 次高，因为近期活跃的习惯更可能被顺手完成。
-- `streakScore` 保留激励作用，但不让连续天数单独主导排序。
-- 整体目标是：优先展示更需要关注、也更有可能完成的活动。
+- 目标是“需要行动的排在前面”：今日未打卡 > 中断风险高 > 仍有行动基础的高风险习惯。
+- `notDoneToday` 权重最高（0.5）：由于该项为 0/1，且其余两项权重之和也是 0.5，所有今日未打卡的活动整体排在已打卡之前；打卡之后该活动会自然下沉到“已完成”一组。
+- 组内顺序由其余两项决定：`interruptionRisk` 为主（漏打越多越靠前），`riskAdjustedByActivity` 为辅（更偏向“还在坚持却开始漏打”的习惯）。
+- 不再把 `completionRate`、`streakScore` 作为正向加分项，避免出现“完成得越好反而排得越靠前”的反直觉现象。
 
 ## 3. 加入提醒时间后的扩展公式
 
 提醒时间逻辑由队友后续实现，因此这里先给出可扩展版本。
+
+> 注：下面这版扩展公式写于第 2 节改版之前，仅作思路参考；真正接入提醒时间时，应在第 2.1 节的新公式基础上再加入 `dueSoonScore` 因子。
 
 ### 3.1 扩展评分公式
 
