@@ -20,7 +20,8 @@
         android:theme="@style/Theme.Stellog">
         <activity
             android:name=".ui.AiAssistantActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.AiSettingsActivity"
             android:exported="false" />

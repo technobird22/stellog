@@ -43,6 +43,7 @@ public class AiAssistantActivity extends AppCompatActivity {
     private LinearLayout chatMessages;
     private ScrollView chatScroll;
     private TextView introSubtitle;
+    private View quickActions;
 
     private final ExecutorService aiExecutor = Executors.newSingleThreadExecutor();
     // 对话内容在应用进程内保留，离开再回来不会丢失；点“新对话”可清空。
@@ -57,9 +58,11 @@ public class AiAssistantActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_ai_assistant);
 
+        // 同时处理系统栏和键盘(ime)的 inset，键盘弹出时把输入栏顶到键盘上方。
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.ai_assistant_root), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            Insets bars = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return insets;
         });
 
@@ -68,11 +71,28 @@ public class AiAssistantActivity extends AppCompatActivity {
         chatMessages = findViewById(R.id.ai_chat_messages);
         chatScroll = findViewById(R.id.ai_assistant_content);
         introSubtitle = findViewById(R.id.ai_intro_subtitle);
+        quickActions = findViewById(R.id.ai_quick_actions);
 
         findViewById(R.id.ai_assistant_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.ai_new_chat_button).setOnClickListener(v -> startNewChat());
         sendButton.setOnClickListener(v -> sendMessage());
         setupQuickActions();
+
+        // 输入框有内容时淡出快捷按钮，清空后再淡入。
+        messageInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                setQuickActionsVisible(s.toString().trim().isEmpty());
+            }
+        });
 
         renderSavedConversation();
         loadContextPrompt();
@@ -90,6 +110,21 @@ public class AiAssistantActivity extends AppCompatActivity {
         TextView chip = findViewById(viewId);
         if (chip != null) {
             chip.setOnClickListener(v -> sendUserText(prompt));
+        }
+    }
+
+    private void setQuickActionsVisible(boolean show) {
+        if (quickActions == null) {
+            return;
+        }
+        if (show) {
+            if (quickActions.getVisibility() != View.VISIBLE) {
+                quickActions.setVisibility(View.VISIBLE);
+                quickActions.animate().alpha(1f).setDuration(150).start();
+            }
+        } else if (quickActions.getVisibility() == View.VISIBLE) {
+            quickActions.animate().alpha(0f).setDuration(150)
+                    .withEndAction(() -> quickActions.setVisibility(View.GONE)).start();
         }
     }
 

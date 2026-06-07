@@ -510,7 +510,8 @@ public class HabitRepository {
             snapshots.add(new HabitPrioritySnapshot(habit.id, score, buildPriorityHint(
                     recentCheckInDays,
                     recentGapDays,
-                    streakDays
+                    streakDays,
+                    habit.id + endDateKey
             )));
         }
 
@@ -527,20 +528,23 @@ public class HabitRepository {
         return streak;
     }
 
-    private String buildPriorityHint(int recentCheckInDays, int recentGapDays, int streakDays) {
+    // 短句鼓励文案：按近期状态选一组，再用 seed（活动 id + 当天）稳定选一句，
+    // 既有变化又不会每次刷新就跳字。
+    private String buildPriorityHint(int recentCheckInDays, int recentGapDays, int streakDays, long seed) {
+        String[] pool;
         if (recentGapDays >= 4 && recentCheckInDays >= 2) {
-            return "中断风险较高，建议优先关注";
+            pool = new String[]{"别断啦，回来继续", "稳住，今天补上", "差点中断，加油"};
+        } else if (streakDays >= 3) {
+            pool = new String[]{"连续坚持，很棒", "势头正好，保持", "你很棒，继续"};
+        } else if (recentCheckInDays >= 5) {
+            pool = new String[]{"状态在线，加油", "近期很积极", "保持这个节奏"};
+        } else if (recentCheckInDays <= 1) {
+            pool = new String[]{"从今天开始", "迈出第一步", "小步也算数"};
+        } else {
+            pool = new String[]{"稳稳坚持", "保持节奏", "继续加油"};
         }
-        if (streakDays >= 3) {
-            return "连续坚持表现较好";
-        }
-        if (recentCheckInDays >= 5) {
-            return "近期活跃度较高";
-        }
-        if (recentCheckInDays <= 1) {
-            return "建议从今天的小目标开始";
-        }
-        return "保持当前节奏";
+        int index = (int) Math.floorMod(seed, (long) pool.length);
+        return pool[index];
     }
 
     public String buildAiContextPrompt() {
