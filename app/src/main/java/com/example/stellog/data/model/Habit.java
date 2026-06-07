@@ -14,7 +14,8 @@ public class Habit {
     // 已打卡次数，用于卡片上的“多少天收获”展示。
     public int recordNum;
 
-    public final boolean reminderEnabled;
+    public boolean reminderEnabled;
+    public int reminderTimeMinutes; // minutes since midnight, -1 means not set
     public final int sortWeight;
 
     // 累计完成值，目前每次打卡默认增加 1。
@@ -32,6 +33,7 @@ public class Habit {
             String unit,
             int recordNum,
             boolean reminderEnabled,
+            int reminderTimeMinutes,
             int sortWeight,
             long totalValue,
             long createdAt,
@@ -43,6 +45,7 @@ public class Habit {
         this.unit = unit;
         this.recordNum = recordNum;
         this.reminderEnabled = reminderEnabled;
+        this.reminderTimeMinutes = reminderTimeMinutes;
         this.sortWeight = sortWeight;
         this.totalValue = totalValue;
         this.createdAt = createdAt;

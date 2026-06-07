@@ -413,26 +413,29 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/profile_habit_count"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"
-                    android:text="创建活动    3"
+                    android:text="创建活动    0"
                     android:textColor="@color/stellog_ink"
                     android:textSize="16sp" />
 
                 <TextView
+                    android:id="@+id/profile_total_records"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"
-                    android:text="累计记录    28"
+                    android:text="累计记录    0"
                     android:textColor="@color/stellog_ink"
                     android:textSize="16sp" />
 
                 <TextView
+                    android:id="@+id/profile_max_streak"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:gravity="center_vertical"
-                    android:text="最长连续    12 天"
+                    android:text="最长连续    0 天"
                     android:textColor="@color/stellog_ink"
                     android:textSize="16sp" />
             </LinearLayout>

@@ -1,155 +1,154 @@
 package com.example.stellog.ui;
 
+import android.app.AlarmManager;
 import android.app.TimePickerDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
-import android.widget.EditText;
+import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.example.stellog.R;
+import com.example.stellog.data.database.HabitDao;
+import com.example.stellog.data.database.StellogDatabase;
+import com.example.stellog.data.model.Habit;
+import com.example.stellog.util.ReminderScheduler;
 
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/**
- * 提醒编辑页面。
- *
- * 为当前活动设置提醒标题、开始和结束时间，保存到 SharedPreferences。
- */
 public class ReminderEditActivity extends AppCompatActivity {
     public static final String EXTRA_HABIT_ID = "habit_id";
     public static final String EXTRA_HABIT_NAME = "habit_name";
-    public static final String PREF_NAME = "reminders";
-
-    private static final int DEFAULT_START_MINUTES = 8 * 60;
-    private static final int DEFAULT_END_MINUTES = 8 * 60 + 30;
+    public static final String EXTRA_REMINDER_ENABLED = "reminder_enabled";
+    public static final String EXTRA_REMINDER_TIME = "reminder_time";
 
     private long habitId;
-    private int startMinutes = DEFAULT_START_MINUTES;
-    private int endMinutes = DEFAULT_END_MINUTES;
+    private String habitName;
+    private boolean reminderEnabled;
+    private int reminderTimeMinutes;
+    private HabitDao habitDao;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    private EditText titleInput;
-    private TextView startValue;
-    private TextView endValue;
+    private Switch enableSwitch;
+    private TextView timeText;
+    private android.view.View timePanel;
+
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.RequestPermission(),
+                    granted -> { }
+            );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_reminder_edit);
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.reminder_edit_root), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        habitDao = StellogDatabase.getInstance(getApplicationContext()).habitDao();
 
-        Intent intent = getIntent();
-        habitId = intent.getLongExtra(EXTRA_HABIT_ID, -1L);
-        String habitName = intent.getStringExtra(EXTRA_HABIT_NAME);
-        if (habitName == null) {
-            habitName = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+            if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            }
         }
 
-        titleInput = findViewById(R.id.reminder_title_input);
-        startValue = findViewById(R.id.reminder_start_value);
-        endValue = findViewById(R.id.reminder_end_value);
+        habitId = getIntent().getLongExtra(EXTRA_HABIT_ID, -1L);
+        habitName = getIntent().getStringExtra(EXTRA_HABIT_NAME);
+        reminderEnabled = getIntent().getBooleanExtra(EXTRA_REMINDER_ENABLED, false);
+        reminderTimeMinutes = getIntent().getIntExtra(EXTRA_REMINDER_TIME, -1);
 
-        loadSavedReminder(habitName);
+        TextView habitNameText = findViewById(R.id.reminder_habit_name);
+        habitNameText.setText(habitName != null ? habitName : "");
 
-        findViewById(R.id.reminder_close_button).setOnClickListener(v -> finish());
-        findViewById(R.id.reminder_cancel_button).setOnClickListener(v -> finish());
-        startValue.setOnClickListener(v -> pickTime(true));
-        endValue.setOnClickListener(v -> pickTime(false));
+        enableSwitch = findViewById(R.id.reminder_enable_switch);
+        timeText = findViewById(R.id.reminder_time_text);
+        timePanel = findViewById(R.id.reminder_time_panel);
+
+        enableSwitch.setChecked(reminderEnabled);
+        updateTimeDisplay();
+        timePanel.setVisibility(reminderEnabled ? android.view.View.VISIBLE : android.view.View.GONE);
+
+        enableSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            reminderEnabled = isChecked;
+            timePanel.setVisibility(isChecked ? android.view.View.VISIBLE : android.view.View.GONE);
+            if (isChecked && reminderTimeMinutes < 0) {
+                java.util.Calendar now = java.util.Calendar.getInstance();
+                reminderTimeMinutes = now.get(java.util.Calendar.HOUR_OF_DAY) * 60 + now.get(java.util.Calendar.MINUTE);
+                updateTimeDisplay();
+            }
+        });
+
+        timePanel.setOnClickListener(v -> showTimePicker());
+
+        findViewById(R.id.reminder_cancel_button).setOnClickListener(v -> {
+            setResult(RESULT_CANCELED);
+            finish();
+        });
+
         findViewById(R.id.reminder_save_button).setOnClickListener(v -> saveReminder());
     }
 
-    private SharedPreferences prefs() {
-        return getSharedPreferences(PREF_NAME, MODE_PRIVATE);
-    }
+    private void showTimePicker() {
+        int hour = reminderTimeMinutes >= 0 ? reminderTimeMinutes / 60 : 8;
+        int minute = reminderTimeMinutes >= 0 ? reminderTimeMinutes % 60 : 0;
 
-    private void loadSavedReminder(String habitName) {
-        SharedPreferences prefs = prefs();
-        // 默认带入活动名称，便于快速设置
-        String savedTitle = prefs.getString(keyTitle(habitId), habitName);
-        startMinutes = prefs.getInt(keyStart(habitId), DEFAULT_START_MINUTES);
-        endMinutes = prefs.getInt(keyEnd(habitId), DEFAULT_END_MINUTES);
-
-        titleInput.setText(savedTitle);
-        titleInput.setSelection(titleInput.getText().length());
-        updateTimeLabels();
-    }
-
-    private void pickTime(boolean isStart) {
-        int current = isStart ? startMinutes : endMinutes;
-        new TimePickerDialog(
+        TimePickerDialog dialog = new TimePickerDialog(
                 this,
-                (view, hour, minute) -> {
-                    if (isStart) {
-                        startMinutes = hour * 60 + minute;
-                    } else {
-                        endMinutes = hour * 60 + minute;
-                    }
-                    updateTimeLabels();
+                (view, hourOfDay, minuteOfDay) -> {
+                    reminderTimeMinutes = hourOfDay * 60 + minuteOfDay;
+                    updateTimeDisplay();
                 },
-                current / 60,
-                current % 60,
+                hour,
+                minute,
                 true
-        ).show();
+        );
+        dialog.show();
     }
 
-    private void updateTimeLabels() {
-        startValue.setText(formatTime(startMinutes));
-        endValue.setText(formatTime(endMinutes));
+    private void updateTimeDisplay() {
+        if (reminderTimeMinutes >= 0) {
+            int hour = reminderTimeMinutes / 60;
+            int minute = reminderTimeMinutes % 60;
+            timeText.setText(String.format(Locale.CHINA, "%02d:%02d", hour, minute));
+        } else {
+            timeText.setText("--:--");
+        }
     }
 
-    private String formatTime(int minutesOfDay) {
-        return String.format(Locale.CHINA, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60);
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
     }
 
     private void saveReminder() {
-        String title = titleInput.getText().toString().trim();
-        if (title.isEmpty()) {
-            titleInput.setError("提醒标题不能为空");
-            return;
-        }
-        if (endMinutes < startMinutes) {
-            Toast.makeText(this, "结束时间不能早于开始时间", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        findViewById(R.id.reminder_save_button).setEnabled(false);
+        long now = System.currentTimeMillis();
+        int minutes = reminderEnabled ? reminderTimeMinutes : -1;
 
-        prefs().edit()
-                .putBoolean(keyEnabled(habitId), true)
-                .putString(keyTitle(habitId), title)
-                .putInt(keyStart(habitId), startMinutes)
-                .putInt(keyEnd(habitId), endMinutes)
-                .apply();
+        executor.execute(() -> {
+            habitDao.updateReminder(habitId, reminderEnabled, minutes, now);
+            Habit habit = habitDao.findById(habitId).toModel();
+            ReminderScheduler.scheduleReminder(getApplicationContext(), habit);
 
-        Toast.makeText(this, "提醒已保存", Toast.LENGTH_SHORT).show();
-        setResult(RESULT_OK);
-        finish();
-    }
-
-    private static String keyEnabled(long habitId) {
-        return "reminder_" + habitId + "_enabled";
-    }
-
-    private static String keyTitle(long habitId) {
-        return "reminder_" + habitId + "_title";
-    }
-
-    private static String keyStart(long habitId) {
-        return "reminder_" + habitId + "_start";
-    }
-
-    private static String keyEnd(long habitId) {
-        return "reminder_" + habitId + "_end";
+            Intent resultIntent = new Intent();
+            resultIntent.putExtra(EXTRA_HABIT_ID, habitId);
+            resultIntent.putExtra(EXTRA_REMINDER_ENABLED, reminderEnabled);
+            resultIntent.putExtra(EXTRA_REMINDER_TIME, minutes);
+            setResult(RESULT_OK, resultIntent);
+            finish();
+        });
     }
 }
