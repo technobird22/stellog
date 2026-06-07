@@ -31,7 +31,8 @@ import java.util.Locale;
  * 当前仍保留 habits 内存列表作为 ViewPager2 的数据源；Repository 创建时会先从 Room 加载已有数据。
  */
 public class HabitRepository {
-    private static final long DEFAULT_CHECK_IN_VALUE = 0L;
+    // 默认每次打卡计 1，这样没有填写数量的天也会计入累计。
+    private static final long DEFAULT_CHECK_IN_VALUE = 1L;
 
     private final HabitDao habitDao;
     private final CheckInRecordDao checkInRecordDao;

@@ -72,8 +72,25 @@ public class RecordDetailActivity extends AppCompatActivity {
 
         findViewById(R.id.record_detail_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.record_detail_cancel_button).setOnClickListener(v -> finish());
+        findViewById(R.id.record_minus_button).setOnClickListener(v -> adjustValue(-1));
+        findViewById(R.id.record_plus_button).setOnClickListener(v -> adjustValue(1));
         saveButton = findViewById(R.id.record_detail_save_button);
         saveButton.setOnClickListener(v -> saveRecordValue());
+    }
+
+    // -1 / +1 步进，最小为 0。
+    private void adjustValue(int delta) {
+        EditText valueInput = findViewById(R.id.record_value_input);
+        long current;
+        String text = valueInput.getText().toString().trim();
+        try {
+            current = text.isEmpty() ? 0 : Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            current = 0;
+        }
+        long next = Math.max(0, current + delta);
+        valueInput.setText(String.valueOf(next));
+        valueInput.setSelection(valueInput.getText().length());
     }
 
     private void saveRecordValue() {
