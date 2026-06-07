@@ -1,4 +1,6 @@
 package com.example.stellog.ui;
+
+import com.example.stellog.data.model.Habit;
 import com.example.stellog.data.repository.HabitRepository;
 
 import android.content.Intent;
@@ -8,9 +10,9 @@ import android.text.TextUtils;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.util.Log;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,6 +31,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -37,13 +40,14 @@ public class AiAssistantActivity extends AppCompatActivity {
     private EditText messageInput;
     private TextView sendButton;
     private LinearLayout chatMessages;
+    private ScrollView chatScroll;
 
 
     private final ExecutorService aiExecutor = Executors.newSingleThreadExecutor();
     private final JSONArray conversationInput = new JSONArray();
 
     private HabitRepository habitRepository;
-    private String weeklyContextPrompt = "本周数据正在读取中。";
+    private String contextPrompt = "习惯数据正在读取中。";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,37 +64,81 @@ public class AiAssistantActivity extends AppCompatActivity {
         messageInput = findViewById(R.id.ai_message_input);
         sendButton = findViewById(R.id.ai_send_button);
         chatMessages = findViewById(R.id.ai_chat_messages);
+        chatScroll = findViewById(R.id.ai_assistant_content);
 
         findViewById(R.id.ai_assistant_close_button).setOnClickListener(v -> finish());
-
         sendButton.setOnClickListener(v -> sendMessage());
+        setupQuickActions();
 
-        addAssistantMessage("你好，我是你的习惯助手。你可以问我关于习惯养成、活动安排或打卡复盘的问题。");
-        loadWeeklyContextPrompt();
+        addAssistantMessage("你好，我是你的习惯助手。可以问我习惯养成、活动安排或打卡复盘，也可以直接点下方的快捷按钮。");
+        loadContextPrompt();
     }
 
-    private void loadWeeklyContextPrompt() {
+    private void setupQuickActions() {
+        wireQuickAction(R.id.ai_chip_review, "请帮我做本周打卡复盘，总结完成情况并给出可执行的改进建议。");
+        wireQuickAction(R.id.ai_chip_risk, "结合我的数据，指出哪些习惯有中断风险，并给出补救建议。");
+        wireQuickAction(R.id.ai_chip_time, "根据我的习惯和已设提醒，推荐更合理的每日打卡时间安排。");
+        wireQuickAction(R.id.ai_chip_encourage, "请根据我的近期表现，给我一句简短有力的鼓励。");
+    }
+
+    private void wireQuickAction(int viewId, String prompt) {
+        TextView chip = findViewById(viewId);
+        if (chip != null) {
+            chip.setOnClickListener(v -> sendUserText(prompt));
+        }
+    }
+
+    private void loadContextPrompt() {
         aiExecutor.execute(() -> {
             try {
                 habitRepository = new HabitRepository(getApplicationContext());
-                String contextPrompt = habitRepository.buildCurrentWeekAiContextPrompt();
-                weeklyContextPrompt = contextPrompt;
+                contextPrompt = habitRepository.buildAiContextPrompt() + buildReminderContext();
                 runOnUiThread(() ->
-                        Toast.makeText(this, "本周数据读取完成", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "习惯数据已就绪", Toast.LENGTH_SHORT).show()
                 );
             } catch (Exception e) {
-                weeklyContextPrompt = "本周数据读取失败。回答时不要假设用户本周数据。";
+                contextPrompt = "习惯数据读取失败。回答时不要假设用户的打卡数据。";
                 runOnUiThread(() ->
-                        Toast.makeText(this, "正在读取本周数据，请稍后再试", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "正在读取习惯数据，请稍后再试", Toast.LENGTH_SHORT).show()
                 );
             }
         });
     }
 
+    // 把已设置的提醒时间作为“日程”补充进上下文，便于推荐打卡时间。
+    private String buildReminderContext() {
+        if (habitRepository == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Habit habit : habitRepository.getHabits()) {
+            if (!habit.reminderEnabled || habit.reminderTimeMinutes < 0) {
+                continue;
+            }
+            sb.append("- ").append(habit.name).append("：")
+                    .append(formatMinutes(habit.reminderTimeMinutes)).append("\n");
+        }
+        if (sb.length() == 0) {
+            return "\n\n当前没有设置任何提醒时间。";
+        }
+        return "\n\n已设置的提醒时间：\n" + sb;
+    }
+
+    private String formatMinutes(int minutesOfDay) {
+        return String.format(Locale.CHINA, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60);
+    }
+
     private void sendMessage() {
-        String userText = messageInput.getText().toString().trim();
+        sendUserText(messageInput.getText().toString().trim());
+    }
+
+    private void sendUserText(String userText) {
         if (TextUtils.isEmpty(userText)) {
             Toast.makeText(this, "请输入问题", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!sendButton.isEnabled()) {
+            // 正在请求中，避免重复发送。
             return;
         }
 
@@ -106,27 +154,33 @@ public class AiAssistantActivity extends AppCompatActivity {
 
         messageInput.setText("");
         addUserMessage(userText);
-
         TextView aiBubble = addAssistantMessage("");
         sendButton.setEnabled(false);
         sendButton.setText("发送中");
+        scrollToBottom();
 
         aiExecutor.execute(() -> {
             try {
                 requestAiReply(apiUrl, model, apiKey, userText, aiBubble);
-
                 runOnUiThread(() -> {
                     sendButton.setEnabled(true);
                     sendButton.setText("发送");
+                    scrollToBottom();
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    aiBubble.setText("请求失败了，请检查网络、API Key、模型名称或账户余额后重试。");
+                    aiBubble.setText("请求失败了，请检查网络、API 地址、模型名称、API Key 或账户余额后重试。");
                     sendButton.setEnabled(true);
                     sendButton.setText("发送");
                 });
             }
         });
+    }
+
+    private void scrollToBottom() {
+        if (chatScroll != null) {
+            chatScroll.post(() -> chatScroll.fullScroll(ScrollView.FOCUS_DOWN));
+        }
     }
 
     private String getApiKey() {
@@ -234,7 +288,10 @@ public class AiAssistantActivity extends AppCompatActivity {
 
             fullReply.append(piece);
 
-            runOnUiThread(() -> aiBubble.setText(fullReply.toString()));
+            runOnUiThread(() -> {
+                aiBubble.setText(fullReply.toString());
+                scrollToBottom();
+            });
         }
 
         String reply = fullReply.toString();
@@ -248,10 +305,9 @@ public class AiAssistantActivity extends AppCompatActivity {
     }
 
     private String buildSystemPrompt() {
-        return "你是 Stellog 应用内的 AI 习惯助手。"
-                + "你的任务是围绕习惯养成、活动安排、打卡复盘给出建议。"
-                + "回答要简洁、具体、可执行，语气温和鼓励。\n\n"
-                + weeklyContextPrompt;
+        return "你是 Stellog 应用内的 AI 习惯助手，围绕习惯养成、活动安排、打卡复盘提供帮助。"
+                + "语气积极、鼓励、给人动力；回答务必简洁、务实、可立即执行，多给具体的小步骤，少说空话套话。\n\n"
+                + contextPrompt;
     }
 
     private TextView addUserMessage(String text) {
