@@ -54,4 +54,8 @@ public interface HabitDao {
     // 删除活动。
     @Query("DELETE FROM habits WHERE id = :habitId")
     void deleteById(long habitId);
+
+    // 清空全部活动。
+    @Query("DELETE FROM habits")
+    void deleteAll();
 }

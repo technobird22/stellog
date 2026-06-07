@@ -441,6 +441,35 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/clear_data_button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_calendar_panel"
+                android:elevation="3dp"
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="清空数据"
+                    android:textColor="@color/stellog_danger"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="删除全部活动、打卡记录并重置成就"
+                    android:textColor="@color/stellog_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/ai_settings_entry"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -584,7 +613,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="AI助手"
-            android:textColor="@color/stellog_primary"
+            android:textColor="@color/stellog_warning"
             android:textSize="16sp"
             android:textStyle="bold" />
 

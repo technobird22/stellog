@@ -24,4 +24,8 @@ public interface AchievementDao {
 
     @Query("SELECT * FROM achievements WHERE code = :code LIMIT 1")
     AchievementEntity findByCode(String code);
+
+    // 清空数据时把所有成就重置为未解锁。
+    @Query("UPDATE achievements SET unlocked = 0, completedAt = 0")
+    void resetAll();
 }

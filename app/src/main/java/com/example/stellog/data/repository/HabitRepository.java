@@ -205,6 +205,14 @@ public class HabitRepository {
         return true;
     }
 
+    // 清空全部数据：删除所有活动与打卡记录，并把成就重置为未解锁。
+    public void clearAllData() {
+        checkInRecordDao.deleteAll();
+        habitDao.deleteAll();
+        achievementDao.resetAll();
+        habits.clear();
+    }
+
     public CheckInRecord getTodayRecord(long habitId) {
         return getRecordOnDate(habitId, CheckInRecord.RecordDate.today());
     }

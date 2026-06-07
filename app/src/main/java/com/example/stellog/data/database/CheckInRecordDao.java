@@ -72,4 +72,8 @@ public interface CheckInRecordDao {
     // 删除某个习惯的全部打卡记录，用于删除活动时一并清理。
     @Query("DELETE FROM check_in_records WHERE habitId = :habitId")
     void deleteByHabitId(long habitId);
+
+    // 清空全部打卡记录。
+    @Query("DELETE FROM check_in_records")
+    void deleteAll();
     }

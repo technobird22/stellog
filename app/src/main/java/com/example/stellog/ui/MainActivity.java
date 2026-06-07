@@ -329,6 +329,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupDarkModeEntry() {
+        View clearData = findViewById(R.id.clear_data_button);
+        if (clearData != null) {
+            clearData.setOnClickListener(v -> confirmClearData());
+        }
+
         View entry = findViewById(R.id.dark_mode_entry);
         if (entry == null) {
             return;
@@ -822,6 +827,50 @@ public class MainActivity extends AppCompatActivity {
                 });
             } catch (Exception ignored) {
                 // 账户数据展示失败不影响其他功能。
+            }
+        });
+    }
+
+    private void confirmClearData() {
+        new AlertDialog.Builder(this)
+                .setTitle("清空数据")
+                .setMessage("将删除所有活动、打卡记录并重置成就，此操作不可恢复。确定清空吗？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("清空", (dialog, which) -> clearAllData())
+                .show();
+    }
+
+    private void clearAllData() {
+        if (habitRepository == null) {
+            return;
+        }
+        // 先取消已排程的提醒，再清空数据库。
+        if (habits != null) {
+            for (Habit habit : habits) {
+                ReminderScheduler.cancelReminder(getApplicationContext(), habit.id);
+            }
+        }
+        executeDatabaseTask(() -> {
+            try {
+                habitRepository.clearAllData();
+                reloadHomeRecordStateFromDatabase();
+                sortHabitsByPriority();
+                runOnUiThread(() -> {
+                    selectedCalendarHabitIds.clear();
+                    updateCalendarFilterLabel();
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+                    currentHabitPosition = 0;
+                    updateHeader(0);
+                    updateEmptyState();
+                    loadCalendarDataAndRender(false);
+                    bindAccountStats();
+                    Toast.makeText(this, "数据已清空", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "清空失败，请重试", Toast.LENGTH_SHORT).show()
+                );
             }
         });
     }
@@ -2022,13 +2071,15 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 });
 
-                // 每张卡片自带提醒入口，已设提醒时高亮。
+                // 每张卡片自带提醒入口：已设提醒高亮，未设提醒显示带斜杠的铃铛表示关闭。
                 if (habit.reminderEnabled) {
+                    reminderButton.setImageResource(R.drawable.ic_bell);
                     reminderButton.setColorFilter(primaryColor);
                     reminderButton.setAlpha(1f);
                 } else {
+                    reminderButton.setImageResource(R.drawable.ic_bell_off);
                     reminderButton.clearColorFilter();
-                    reminderButton.setAlpha(0.5f);
+                    reminderButton.setAlpha(1f);
                 }
                 reminderButton.setOnClickListener(v -> openReminderEditor(habit));
 
