@@ -23,12 +23,28 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
+        android:id="@+id/ai_new_chat_button"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_marginEnd="18dp"
+        android:layout_marginTop="26dp"
+        android:gravity="center"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:text="新对话"
+        android:textColor="@color/stellog_primary"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
         android:id="@+id/ai_assistant_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="34dp"
         android:includeFontPadding="false"
-        android:text="AI 助手"
+        android:text="任务助手"
         android:textColor="@color/stellog_ink"
         android:textSize="24sp"
         android:textStyle="bold"
@@ -36,19 +52,35 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <TextView
+        android:id="@+id/ai_intro_subtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="36dp"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
+        android:text="你好，我是你的任务助手～陪你把每天的小目标坚持下去。点下面的快捷按钮，或直接问我。"
+        android:textColor="@color/stellog_muted"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/ai_assistant_title" />
+
     <ScrollView
         android:id="@+id/ai_assistant_content"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:clipToPadding="false"
         android:paddingStart="22dp"
-        android:paddingTop="24dp"
+        android:paddingTop="20dp"
         android:paddingEnd="22dp"
         android:paddingBottom="18dp"
         app:layout_constraintBottom_toTopOf="@id/ai_quick_actions"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/ai_assistant_title">
+        app:layout_constraintTop_toBottomOf="@id/ai_intro_subtitle">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -59,7 +91,7 @@
                 android:id="@+id/ai_chat_messages"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
+                android:layout_marginTop="20dp"
                 android:orientation="vertical">
             </LinearLayout>
         </LinearLayout>
@@ -89,6 +121,16 @@
                 android:text="本周复盘" />
 
             <TextView
+                android:id="@+id/ai_chip_encourage"
+                style="@style/AiChip"
+                android:text="鼓励一下" />
+
+            <TextView
+                android:id="@+id/ai_chip_today"
+                style="@style/AiChip"
+                android:text="今天做什么" />
+
+            <TextView
                 android:id="@+id/ai_chip_risk"
                 style="@style/AiChip"
                 android:text="中断风险" />
@@ -97,11 +139,6 @@
                 android:id="@+id/ai_chip_time"
                 style="@style/AiChip"
                 android:text="打卡时间" />
-
-            <TextView
-                android:id="@+id/ai_chip_encourage"
-                style="@style/AiChip"
-                android:text="鼓励一下" />
         </LinearLayout>
     </HorizontalScrollView>
 

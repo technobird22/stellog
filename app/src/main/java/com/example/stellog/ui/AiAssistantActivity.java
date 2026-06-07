@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -41,10 +42,11 @@ public class AiAssistantActivity extends AppCompatActivity {
     private TextView sendButton;
     private LinearLayout chatMessages;
     private ScrollView chatScroll;
-
+    private TextView introSubtitle;
 
     private final ExecutorService aiExecutor = Executors.newSingleThreadExecutor();
-    private final JSONArray conversationInput = new JSONArray();
+    // 对话内容在应用进程内保留，离开再回来不会丢失；点“新对话”可清空。
+    private static JSONArray conversationInput = new JSONArray();
 
     private HabitRepository habitRepository;
     private String contextPrompt = "习惯数据正在读取中。";
@@ -65,26 +67,63 @@ public class AiAssistantActivity extends AppCompatActivity {
         sendButton = findViewById(R.id.ai_send_button);
         chatMessages = findViewById(R.id.ai_chat_messages);
         chatScroll = findViewById(R.id.ai_assistant_content);
+        introSubtitle = findViewById(R.id.ai_intro_subtitle);
 
         findViewById(R.id.ai_assistant_close_button).setOnClickListener(v -> finish());
+        findViewById(R.id.ai_new_chat_button).setOnClickListener(v -> startNewChat());
         sendButton.setOnClickListener(v -> sendMessage());
         setupQuickActions();
 
-        addAssistantMessage("你好，我是你的习惯助手。可以问我习惯养成、活动安排或打卡复盘，也可以直接点下方的快捷按钮。");
+        renderSavedConversation();
         loadContextPrompt();
     }
 
     private void setupQuickActions() {
         wireQuickAction(R.id.ai_chip_review, "请帮我做本周打卡复盘，总结完成情况并给出可执行的改进建议。");
+        wireQuickAction(R.id.ai_chip_encourage, "请根据我的近期表现，给我一句简短有力的鼓励。");
+        wireQuickAction(R.id.ai_chip_today, "我今天还有哪些活动没完成？请按优先级简要建议我先做什么。");
         wireQuickAction(R.id.ai_chip_risk, "结合我的数据，指出哪些习惯有中断风险，并给出补救建议。");
         wireQuickAction(R.id.ai_chip_time, "根据我的习惯和已设提醒，推荐更合理的每日打卡时间安排。");
-        wireQuickAction(R.id.ai_chip_encourage, "请根据我的近期表现，给我一句简短有力的鼓励。");
     }
 
     private void wireQuickAction(int viewId, String prompt) {
         TextView chip = findViewById(viewId);
         if (chip != null) {
             chip.setOnClickListener(v -> sendUserText(prompt));
+        }
+    }
+
+    // 进入页面时把进程内保留的对话重新渲染出来。
+    private void renderSavedConversation() {
+        chatMessages.removeAllViews();
+        for (int i = 0; i < conversationInput.length(); i++) {
+            JSONObject message = conversationInput.optJSONObject(i);
+            if (message == null) {
+                continue;
+            }
+            String role = message.optString("role", "");
+            String content = message.optString("content", "");
+            if ("user".equals(role)) {
+                addUserMessage(content);
+            } else if ("assistant".equals(role)) {
+                addAssistantMessage(content);
+            }
+        }
+        updateIntroVisibility();
+        scrollToBottom();
+    }
+
+    private void startNewChat() {
+        conversationInput = new JSONArray();
+        chatMessages.removeAllViews();
+        messageInput.setText("");
+        updateIntroVisibility();
+        Toast.makeText(this, "已开始新对话", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateIntroVisibility() {
+        if (introSubtitle != null) {
+            introSubtitle.setVisibility(conversationInput.length() == 0 ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -154,6 +193,9 @@ public class AiAssistantActivity extends AppCompatActivity {
 
         messageInput.setText("");
         addUserMessage(userText);
+        if (introSubtitle != null) {
+            introSubtitle.setVisibility(View.GONE);
+        }
         TextView aiBubble = addAssistantMessage("");
         sendButton.setEnabled(false);
         sendButton.setText("发送中");
@@ -305,8 +347,10 @@ public class AiAssistantActivity extends AppCompatActivity {
     }
 
     private String buildSystemPrompt() {
-        return "你是 Stellog 应用内的 AI 习惯助手，围绕习惯养成、活动安排、打卡复盘提供帮助。"
-                + "语气积极、鼓励、给人动力；回答务必简洁、务实、可立即执行，多给具体的小步骤，少说空话套话。\n\n"
+        return "你是 Stellog 应用内的任务助手，围绕习惯养成、活动安排、打卡复盘提供帮助。"
+                + "语气积极、鼓励、给人动力；回答要非常简洁、务实、可立即执行，多给具体的小步骤。"
+                + "请用纯文本中文回答，不要使用 Markdown 语法（不要用 # 标题、* 或 - 列表、** 加粗、表格、代码块）；"
+                + "如需分点，用「1. 2. 3.」或短句。\n\n"
                 + contextPrompt;
     }
 
