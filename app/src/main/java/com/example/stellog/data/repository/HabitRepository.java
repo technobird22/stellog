@@ -488,13 +488,16 @@ public class HabitRepository {
 
             double completionRate = recentCheckInDays / 7.0;
             double interruptionRisk = recentGapDays / 7.0;
-            double streakScore = Math.min(streakDays, 14) / 14.0;
 
             // TODO: 接入提醒时间后，可增加“临近提醒时间”因子并参与加权。
             double riskAdjustedByActivity = interruptionRisk * (0.4 + 0.6 * completionRate);
-            double score = riskAdjustedByActivity * 0.45
-                    + completionRate * 0.35
-                    + streakScore * 0.20;
+
+            // 排序优先级：今日未打卡的活动始终排在已完成的前面（0.5 基准把两组分开），
+            // 组内再按中断风险排序（漏打越多越靠前），并对“仍在坚持但开始漏打”的活动略作加权。
+            boolean doneToday = checkedDates.contains(endDateKey);
+            double score = (doneToday ? 0.0 : 1.0) * 0.5
+                    + interruptionRisk * 0.3
+                    + riskAdjustedByActivity * 0.2;
 
             snapshots.add(new HabitPrioritySnapshot(habit.id, score, buildPriorityHint(
                     recentCheckInDays,
