@@ -14,11 +14,17 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.stellog.R;
 
 /**
- * 创建活动页面。
+ * 创建/编辑活动页面。
  *
- * 目前只负责收集活动名称和单位，并通过 ActivityResult 返回给 MainActivity。
+ * 收集活动名称和单位，通过 ActivityResult 返回给 MainActivity。
+ * 传入 habit_id 时进入编辑模式，预填并在返回时带上 id。
  */
 public class CreateHabitActivity extends AppCompatActivity {
+    public static final String EXTRA_HABIT_ID = "habit_id";
+    public static final String EXTRA_HABIT_NAME = "habit_name";
+    public static final String EXTRA_HABIT_UNIT = "habit_unit";
+
+    private long editHabitId = -1L;
     private TextView saveButton;
 
     @Override
@@ -27,12 +33,25 @@ public class CreateHabitActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_create_habit);
 
-        // 处理沉浸式系统栏，避免内容被状态栏或导航栏遮挡。
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.create_habit_root), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        EditText nameInput = findViewById(R.id.habit_name_input);
+        EditText unitInput = findViewById(R.id.habit_unit_input);
+
+        // 编辑模式：带入活动 id 时预填名称和单位。
+        editHabitId = getIntent().getLongExtra(EXTRA_HABIT_ID, -1L);
+        if (editHabitId > 0) {
+            ((TextView) findViewById(R.id.create_title)).setText("编辑活动");
+            String name = getIntent().getStringExtra(EXTRA_HABIT_NAME);
+            String unit = getIntent().getStringExtra(EXTRA_HABIT_UNIT);
+            nameInput.setText(name == null ? "" : name);
+            nameInput.setSelection(nameInput.getText().length());
+            unitInput.setText(unit == null ? "" : unit);
+        }
 
         findViewById(R.id.create_close_button).setOnClickListener(v -> finish());
         findViewById(R.id.create_cancel_button).setOnClickListener(v -> finish());
@@ -49,16 +68,18 @@ public class CreateHabitActivity extends AppCompatActivity {
         String unit = unitInput.getText().toString().trim();
 
         if (name.isEmpty()) {
-            nameInput.setError("\u6d3b\u52a8\u540d\u79f0\u4e0d\u80fd\u4e3a\u7a7a");
+            nameInput.setError("活动名称不能为空");
             return;
         }
 
         setSaveButtonLoading(true);
 
-        // 通过 Intent 返回输入结果，真正创建 Habit 的逻辑由 MainActivity 统一处理。
         Intent resultIntent = new Intent();
-        resultIntent.putExtra("habit_name", name);
-        resultIntent.putExtra("habit_unit", unit);
+        resultIntent.putExtra(EXTRA_HABIT_NAME, name);
+        resultIntent.putExtra(EXTRA_HABIT_UNIT, unit);
+        if (editHabitId > 0) {
+            resultIntent.putExtra(EXTRA_HABIT_ID, editHabitId);
+        }
 
         setResult(RESULT_OK, resultIntent);
         finish();
@@ -70,6 +91,6 @@ public class CreateHabitActivity extends AppCompatActivity {
         }
         saveButton.setEnabled(!loading);
         saveButton.setAlpha(loading ? 0.65f : 1f);
-        saveButton.setText(loading ? "\u4fdd\u5b58\u4e2d..." : "\u4fdd\u5b58");
+        saveButton.setText(loading ? "保存中..." : "保存");
     }
 }

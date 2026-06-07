@@ -16,4 +16,8 @@
     <string name="record_value_hint">请输入今天完成的数量</string>
     <string name="habit_filter_title">选择活动</string>
     <string name="confirm">确定</string>
+    <string name="reminder_edit_title">编辑提醒</string>
+    <string name="reminder_title_hint">提醒标题</string>
+    <string name="reminder_start_label">开始时间</string>
+    <string name="reminder_end_label">结束时间</string>
 </resources>

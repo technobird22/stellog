@@ -15,4 +15,6 @@
     <color name="stellog_line">#D9E6DF</color>
     <color name="stellog_warning">#E9A23B</color>
     <color name="stellog_danger">#D9634F</color>
+    <color name="stellog_border_done">#8FD3C0</color>
+    <color name="stellog_border_undone">#E7B3A9</color>
 </resources>

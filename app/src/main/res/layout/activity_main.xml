@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#EEF1EF"
+    android:background="@color/stellog_background"
     android:clipChildren="false"
     android:clipToPadding="false"
     tools:context=".ui.MainActivity">
@@ -48,69 +48,27 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/page_indicator"
-        android:layout_width="92dp"
-        android:layout_height="40dp"
-        android:layout_marginTop="28dp"
-        android:layout_marginEnd="18dp"
-        android:background="@drawable/bg_page_pill"
-        android:elevation="2dp"
-        android:gravity="center"
-        android:orientation="horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <TextView
-            android:id="@+id/page_indicator_text"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="1 / 3"
-            android:textColor="#AEB4B1"
-            android:textSize="17sp" />
-
-        <TextView
-            android:layout_width="30dp"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="≡"
-            android:textColor="#AEB4B1"
-            android:textSize="21sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/side_rail"
-        android:layout_width="58dp"
-        android:layout_height="82dp"
-        android:background="@drawable/bg_side_rail"
-        android:gravity="center"
-        android:orientation="vertical"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/habit_pager">
-
-        <ImageView
-            android:id="@+id/reminder_button"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:contentDescription="提醒"
-            android:gravity="center"
-            android:padding="7dp"
-            android:src="@drawable/ic_bell" />
-    </LinearLayout>
-
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/habit_pager"
         android:layout_width="0dp"
         android:layout_height="500dp"
-        android:layout_marginTop="56dp"
+        android:layout_marginTop="40dp"
         android:clipChildren="false"
         android:clipToPadding="false"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/view_mode_switch" />
+
+    <LinearLayout
+        android:id="@+id/page_dots"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/habit_pager" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/habit_list"
@@ -127,6 +85,20 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/view_mode_switch"
         tools:listitem="@layout/item_habit_list" />
+
+    <TextView
+        android:id="@+id/empty_home_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="还没有活动，点击右下角 + 创建第一个吧"
+        android:textColor="@color/stellog_muted"
+        android:textSize="16sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottom_tabs"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/view_mode_switch" />
 
     <ScrollView
         android:id="@+id/calendar_content"
@@ -493,7 +465,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="设置 API Key"
-                    android:textColor="#6E756F"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
 
@@ -534,7 +506,37 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="关闭后按创建顺序展示"
-                    android:textColor="#6E756F"
+                    android:textColor="@color/stellog_muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/dark_mode_entry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:background="@drawable/bg_calendar_panel"
+                android:elevation="3dp"
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="深色模式"
+                    android:textColor="@color/stellog_ink"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/dark_mode_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="浅色"
+                    android:textColor="@color/stellog_muted"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>
@@ -562,7 +564,7 @@
             android:gravity="center"
             android:text="首页"
             android:textColor="@color/stellog_primary"
-            android:textSize="18sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -572,12 +574,19 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="日历"
-            android:textColor="#575D5A"
-            android:textSize="18sp" />
+            android:textColor="@color/stellog_muted"
+            android:textSize="16sp" />
 
-        <Space
-            android:layout_width="74dp"
-            android:layout_height="match_parent" />
+        <TextView
+            android:id="@+id/ai_tab"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="AI助手"
+            android:textColor="@color/stellog_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/achievement_tab"
@@ -586,8 +595,8 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="成就"
-            android:textColor="#575D5A"
-            android:textSize="18sp" />
+            android:textColor="@color/stellog_muted"
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/profile_tab"
@@ -596,38 +605,22 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="我的"
-            android:textColor="#575D5A"
-            android:textSize="18sp" />
+            android:textColor="@color/stellog_muted"
+            android:textSize="16sp" />
     </LinearLayout>
 
     <TextView
         android:id="@+id/add_activity_button"
-        android:layout_width="68dp"
-        android:layout_height="68dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginEnd="22dp"
+        android:layout_marginBottom="18dp"
         android:background="@drawable/bg_add_fab"
         android:elevation="12dp"
         android:gravity="center"
         android:text="+"
         android:textColor="@color/white"
-        android:textSize="38sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toTopOf="@id/bottom_tabs"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/bottom_tabs" />
-
-    <TextView
-        android:id="@+id/ai_assistant_entry"
-        android:layout_width="96dp"
-        android:layout_height="46dp"
-        android:layout_marginEnd="22dp"
-        android:layout_marginBottom="18dp"
-        android:background="@drawable/bg_ai_entry"
-        android:elevation="10dp"
-        android:gravity="center"
-        android:text="AI 助手"
-        android:textColor="@color/stellog_ink"
-        android:textSize="15sp"
+        android:textSize="36sp"
         android:textStyle="bold"
         app:layout_constraintBottom_toTopOf="@id/bottom_tabs"
         app:layout_constraintEnd_toEndOf="parent" />

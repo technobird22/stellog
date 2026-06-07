@@ -8,9 +8,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
+        android:name=".StellogApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
+        android:usesCleartextTraffic="true"
         android:icon="@drawable/ic_stellog_launcher"
         android:label="@string/app_name"
         android:roundIcon="@drawable/ic_stellog_launcher"

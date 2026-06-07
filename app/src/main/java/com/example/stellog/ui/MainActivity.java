@@ -23,6 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.Insets;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.ViewCompat;
@@ -65,6 +66,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long DEFAULT_RECORD_VALUE = 0L;
     private static final String PREF_NAME = "main_preferences";
     private static final String KEY_SMART_RECOMMENDATION_ENABLED = "smart_recommendation_enabled";
+    private static final String KEY_NIGHT_MODE = "night_mode";
 
     private HabitRepository habitRepository;
     private List<Habit> habits;
@@ -75,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
     private HabitPagerAdapter habitAdapter;
     private RecyclerView habitList;
     private HabitListAdapter habitListAdapter;
-    private TextView pageIndicatorText;
     private View calendarContent;
     private View achievementContent;
     private View profileContent;
@@ -83,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView calendarTab;
     private TextView achievementTab;
     private TextView profileTab;
+    private TextView aiTab;
     private TextView calendarActivityFilterLabel;
     private GridLayout calendarGrid;
     private TextView calendarMonthTitle;
@@ -124,7 +126,12 @@ public class MainActivity extends AppCompatActivity {
                             unit = "";
                         }
 
-                        addHabit(name.trim(), unit.trim());
+                        long editId = result.getData().getLongExtra(CreateHabitActivity.EXTRA_HABIT_ID, -1L);
+                        if (editId > 0) {
+                            updateHabit(editId, name.trim(), unit.trim());
+                        } else {
+                            addHabit(name.trim(), unit.trim());
+                        }
                     }
             );
 
@@ -196,6 +203,7 @@ public class MainActivity extends AppCompatActivity {
                     }
             );
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
@@ -210,7 +218,6 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        pageIndicatorText = findViewById(R.id.page_indicator_text);
         habitList = findViewById(R.id.habit_list);
         calendarContent = findViewById(R.id.calendar_content);
         achievementContent = findViewById(R.id.achievement_content);
@@ -219,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
         calendarTab = findViewById(R.id.calendar_tab);
         achievementTab = findViewById(R.id.achievement_tab);
         profileTab = findViewById(R.id.profile_tab);
+        aiTab = findViewById(R.id.ai_tab);
         calendarActivityFilterLabel = findViewById(R.id.calendar_activity_filter_label);
         calendarGrid = findViewById(R.id.calendar_grid);
         calendarMonthTitle = findViewById(R.id.calendar_month_title);
@@ -232,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
         mainLoading = findViewById(R.id.main_loading);
         smartRecommendationEnabled = getMainPreferences().getBoolean(KEY_SMART_RECOMMENDATION_ENABLED, true);
         setupSmartRecommendationSwitch();
+        setupDarkModeEntry();
         setMainLoading(true);
 
         // 数据库操作放在单线程池中执行，避免阻塞 UI 线程。
@@ -257,20 +266,6 @@ public class MainActivity extends AppCompatActivity {
                         Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
                         createHabitLauncher.launch(intent);
                     });
-                    findViewById(R.id.reminder_button).setOnClickListener(v -> {
-                        if (habits == null || habits.isEmpty()) {
-                            Toast.makeText(MainActivity.this, "还没有活动，请先创建", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        Habit currentHabit = habits.get(currentHabitPosition);
-                        Intent intent = new Intent(MainActivity.this, ReminderEditActivity.class);
-                        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_ID, currentHabit.id);
-                        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_NAME, currentHabit.name);
-                        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_ENABLED, currentHabit.reminderEnabled);
-                        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_TIME, currentHabit.reminderTimeMinutes);
-                        reminderEditLauncher.launch(intent);
-                    });
-                    findViewById(R.id.ai_assistant_entry).setOnClickListener(v -> openAiAssistantOrSettings());
                     findViewById(R.id.ai_settings_entry).setOnClickListener(v -> {
                         Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
                         startActivity(intent);
@@ -331,6 +326,61 @@ public class MainActivity extends AppCompatActivity {
 
     private SharedPreferences getMainPreferences() {
         return getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+    }
+
+    private void setupDarkModeEntry() {
+        View entry = findViewById(R.id.dark_mode_entry);
+        if (entry == null) {
+            return;
+        }
+        updateDarkModeSubtitle();
+        entry.setOnClickListener(v -> showDarkModeDialog());
+    }
+
+    private void updateDarkModeSubtitle() {
+        TextView subtitle = findViewById(R.id.dark_mode_subtitle);
+        if (subtitle == null) {
+            return;
+        }
+        int mode = getMainPreferences().getInt(KEY_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_NO);
+        subtitle.setText(nightModeLabel(mode));
+    }
+
+    private String nightModeLabel(int mode) {
+        if (mode == AppCompatDelegate.MODE_NIGHT_YES) {
+            return "深色";
+        }
+        if (mode == AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM) {
+            return "跟随系统";
+        }
+        return "浅色";
+    }
+
+    private void showDarkModeDialog() {
+        final int[] modes = {
+                AppCompatDelegate.MODE_NIGHT_NO,
+                AppCompatDelegate.MODE_NIGHT_YES,
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        };
+        String[] labels = {"浅色", "深色", "跟随系统"};
+        int current = getMainPreferences().getInt(KEY_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_NO);
+        int checked = 0;
+        for (int i = 0; i < modes.length; i++) {
+            if (modes[i] == current) {
+                checked = i;
+                break;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("深色模式")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    getMainPreferences().edit().putInt(KEY_NIGHT_MODE, modes[which]).apply();
+                    dialog.dismiss();
+                    // 切换主题会重建界面以应用新配色。
+                    AppCompatDelegate.setDefaultNightMode(modes[which]);
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void setupSmartRecommendationSwitch() {
@@ -445,6 +495,8 @@ public class MainActivity extends AppCompatActivity {
         calendarTab.setOnClickListener(v -> showCalendarPage());
         achievementTab.setOnClickListener(v -> showAchievementPage());
         profileTab.setOnClickListener(v -> showProfilePage());
+        // AI 助手是独立页面，点击直接打开，不改变底部选中态。
+        aiTab.setOnClickListener(v -> openAiAssistantOrSettings());
         showHomePage();
     }
 
@@ -677,9 +729,11 @@ public class MainActivity extends AppCompatActivity {
     private void openAiAssistantOrSettings() {
         SharedPreferences preferences = getSharedPreferences(AiSettingsActivity.PREF_NAME, MODE_PRIVATE);
         String apiKey = preferences.getString(AiSettingsActivity.KEY_API_KEY, "");
+        String apiUrl = preferences.getString(AiSettingsActivity.KEY_API_URL, AiSettingsActivity.DEFAULT_API_URL);
 
-        if (TextUtils.isEmpty(apiKey)) {
-            Toast.makeText(this, "请先设置 API Key", Toast.LENGTH_SHORT).show();
+        // 默认 DeepSeek 地址需要 API Key；自定义（如本地）地址允许留空。
+        if (apiUrl.equals(AiSettingsActivity.DEFAULT_API_URL) && TextUtils.isEmpty(apiKey)) {
+            Toast.makeText(this, "请先在 AI 设置中填写 API Key", Toast.LENGTH_SHORT).show();
             Intent intent = new Intent(MainActivity.this, AiSettingsActivity.class);
             startActivity(intent);
             return;
@@ -689,14 +743,34 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    // 打开提醒编辑页面，标题默认带入活动名称。
+    private void openReminderEditor(Habit habit) {
+        Intent intent = new Intent(MainActivity.this, ReminderEditActivity.class);
+        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(ReminderEditActivity.EXTRA_HABIT_NAME, habit.name);
+        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_ENABLED, habit.reminderEnabled);
+        intent.putExtra(ReminderEditActivity.EXTRA_REMINDER_TIME, habit.reminderTimeMinutes);
+        reminderEditLauncher.launch(intent);
+    }
+
+    // 没有活动时在主页展示创建提示。
+    private void updateEmptyState() {
+        View hint = findViewById(R.id.empty_home_hint);
+        if (hint == null) {
+            return;
+        }
+        boolean empty = habits == null || habits.isEmpty();
+        hint.setVisibility(empty ? View.VISIBLE : View.GONE);
+    }
+
     private void showHomePage() {
         findViewById(R.id.view_mode_switch).setVisibility(View.VISIBLE);
         applyViewMode();
         findViewById(R.id.add_activity_button).setVisibility(View.VISIBLE);
-        findViewById(R.id.ai_assistant_entry).setVisibility(View.VISIBLE);
         calendarContent.setVisibility(View.GONE);
         achievementContent.setVisibility(View.GONE);
         profileContent.setVisibility(View.GONE);
+        updateEmptyState();
 
         selectBottomTab(homeTab);
     }
@@ -731,12 +805,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void hideHomeViews() {
         findViewById(R.id.view_mode_switch).setVisibility(View.GONE);
-        findViewById(R.id.page_indicator).setVisibility(View.GONE);
-        findViewById(R.id.side_rail).setVisibility(View.GONE);
+        findViewById(R.id.page_dots).setVisibility(View.GONE);
         habitPager.setVisibility(View.GONE);
         habitList.setVisibility(View.GONE);
         findViewById(R.id.add_activity_button).setVisibility(View.GONE);
-        findViewById(R.id.ai_assistant_entry).setVisibility(View.GONE);
+        findViewById(R.id.empty_home_hint).setVisibility(View.GONE);
     }
 
     private void selectBottomTab(TextView selectedTab) {
@@ -885,6 +958,13 @@ public class MainActivity extends AppCompatActivity {
     private String getPriorityHint(long habitId) {
         String hint = habitPriorityHintById.get(habitId);
         return hint == null ? "" : hint;
+    }
+
+    // 卡片统计行：今日数量与累计值，单位为空时省略。
+    private String buildCardStatsLine(long todayValue, long totalValue, String unit) {
+        String trimmedUnit = unit == null ? "" : unit.trim();
+        String suffix = trimmedUnit.isEmpty() ? "" : " " + trimmedUnit;
+        return String.format(Locale.CHINA, "今日 %d%s · 累计 %d%s", todayValue, suffix, totalValue, suffix);
     }
 
     private String getRecordCacheKey(long habitId, CheckInRecord.RecordDate date) {
@@ -1058,32 +1138,62 @@ public class MainActivity extends AppCompatActivity {
                 0
         );
 
-        TextView recordText = new TextView(this);
-        recordText.setLayoutParams(new LinearLayout.LayoutParams(
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setLayoutParams(new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 1f
         ));
-        recordText.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        recordText.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
-        recordText.setTextSize(16);
-        recordText.setTypeface(null, android.graphics.Typeface.BOLD);
-        if (completed) {
-            recordText.setText(String.format(
-                    Locale.CHINA,
-                    "%s  ·  已完成 %d %s",
-                    habit.name,
-                    record.value,
-                    habit.unit
-            ));
-        } else {
-            recordText.setText(String.format(Locale.CHINA, "%s  ·  待打卡", habit.name));
-        }
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        textColumn.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView nameText = new TextView(this);
+        nameText.setText(habit.name);
+        nameText.setSingleLine(true);
+        nameText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nameText.setTextColor(getColor(completed ? R.color.stellog_ink : R.color.stellog_muted));
+        nameText.setTextSize(16);
+        nameText.setTypeface(null, android.graphics.Typeface.BOLD);
+
+        TextView statusText = new TextView(this);
+        statusText.setText(buildSelectedDateStatus(completed, record, habit.unit));
+        statusText.setSingleLine(true);
+        statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        statusText.setTextColor(getColor(completed ? R.color.stellog_primary : R.color.stellog_muted));
+        statusText.setTextSize(13);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        statusParams.topMargin = DimensionUtils.dpToPx(getResources(), 2);
+        statusText.setLayoutParams(statusParams);
+
+        textColumn.addView(nameText);
+        textColumn.addView(statusText);
 
         TextView actionButton = createCalendarRecordActionButton(habit, record, recordDate);
-        row.addView(recordText);
+        LinearLayout.LayoutParams actionParams =
+                (LinearLayout.LayoutParams) actionButton.getLayoutParams();
+        actionParams.leftMargin = DimensionUtils.dpToPx(getResources(), 12);
+        actionButton.setLayoutParams(actionParams);
+
+        row.addView(textColumn);
         row.addView(actionButton);
         return row;
+    }
+
+    // 选中日期记录行的状态文案，数量为 0 或单位为空时省略。
+    private String buildSelectedDateStatus(boolean completed, CheckInRecord record, String unit) {
+        if (!completed) {
+            return "待打卡";
+        }
+        if (record.value <= 0) {
+            return "已完成";
+        }
+        String trimmedUnit = unit == null ? "" : unit.trim();
+        return trimmedUnit.isEmpty()
+                ? String.format(Locale.CHINA, "已完成 %d", record.value)
+                : String.format(Locale.CHINA, "已完成 %d %s", record.value, trimmedUnit);
     }
 
     // 根据打卡记录状态和选中日期与今天的关系，创建相应的操作按钮（打卡/补打卡/查看详情/不可打卡）。
@@ -1148,15 +1258,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void applyViewMode() {
-        View pageIndicator = findViewById(R.id.page_indicator);
-        View sideRail = findViewById(R.id.side_rail);
+        View pageDots = findViewById(R.id.page_dots);
         TextView cardMode = findViewById(R.id.card_mode);
         TextView listModeButton = findViewById(R.id.list_mode);
 
         habitPager.setVisibility(listMode ? View.GONE : View.VISIBLE);
         habitList.setVisibility(listMode ? View.VISIBLE : View.GONE);
-        pageIndicator.setVisibility(listMode ? View.GONE : View.VISIBLE);
-        sideRail.setVisibility(listMode ? View.GONE : View.VISIBLE);
+        pageDots.setVisibility(listMode ? View.GONE : View.VISIBLE);
 
         cardMode.setBackgroundResource(listMode ? 0 : R.drawable.bg_mode_selected);
         cardMode.setTextColor(getColor(listMode ? R.color.stellog_muted : R.color.white));
@@ -1214,6 +1322,7 @@ public class MainActivity extends AppCompatActivity {
                 updateCalendarFilterLabel();
                 habitAdapter.notifyDataSetChanged();
                 habitListAdapter.notifyDataSetChanged();
+                updateEmptyState();
 
                 int newPosition = habitRepository.findHabitPosition(habit.id);
                 if (newPosition < 0) {
@@ -1235,15 +1344,78 @@ public class MainActivity extends AppCompatActivity {
     });
     }
 
-    /**
-     * 更新右上角页码。
-     */
+    // 长按卡片进入编辑：复用创建页并预填名称和单位。
+    private void openEditHabit(Habit habit) {
+        Intent intent = new Intent(MainActivity.this, CreateHabitActivity.class);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_ID, habit.id);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_NAME, habit.name);
+        intent.putExtra(CreateHabitActivity.EXTRA_HABIT_UNIT, habit.unit);
+        createHabitLauncher.launch(intent);
+    }
+
+    private void updateHabit(long habitId, String name, String unit) {
+        executeDatabaseTask(() -> {
+            try {
+                Habit updated = habitRepository.updateHabit(habitId, name, unit);
+                sortHabitsByPriority();
+                runOnUiThread(() -> {
+                    if (updated == null) {
+                        Toast.makeText(this, "更新失败，请重试", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    habitAdapter.notifyDataSetChanged();
+                    habitListAdapter.notifyDataSetChanged();
+                    int position = habitRepository.findHabitPosition(habitId);
+                    if (position >= 0) {
+                        currentHabitPosition = position;
+                        habitPager.setCurrentItem(position, false);
+                        updateHeader(position);
+                    }
+                    loadCalendarDataAndRender(false);
+                    Toast.makeText(this, "活动已更新", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "更新失败，请重试", Toast.LENGTH_SHORT).show()
+                );
+            }
+        });
+    }
+
     private void updateHeader(int position) {
-        if (habits.isEmpty()) {
-            pageIndicatorText.setText(getString(R.string.page_indicator_format, 0, 0));
+        renderPageDots();
+    }
+
+    // 卡片模式下在卡片下方用圆点显示当前位置；活动较多时退回文字。
+    private void renderPageDots() {
+        LinearLayout dots = findViewById(R.id.page_dots);
+        if (dots == null) {
             return;
         }
-        pageIndicatorText.setText(getString(R.string.page_indicator_format, position + 1, habits.size()));
+        dots.removeAllViews();
+        int count = habits == null ? 0 : habits.size();
+        if (count <= 1) {
+            return;
+        }
+        int active = Math.max(0, Math.min(currentHabitPosition, count - 1));
+        if (count > 10) {
+            TextView label = new TextView(this);
+            label.setText(String.format(Locale.CHINA, "%d / %d", active + 1, count));
+            label.setTextColor(getColor(R.color.stellog_muted));
+            label.setTextSize(14);
+            dots.addView(label);
+            return;
+        }
+        for (int i = 0; i < count; i++) {
+            View dot = new View(this);
+            int size = DimensionUtils.dpToPx(getResources(), i == active ? 9 : 7);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
+            params.leftMargin = DimensionUtils.dpToPx(getResources(), 4);
+            params.rightMargin = DimensionUtils.dpToPx(getResources(), 4);
+            dot.setLayoutParams(params);
+            dot.setBackgroundResource(i == active ? R.drawable.bg_dot_active : R.drawable.bg_dot_inactive);
+            dots.addView(dot);
+        }
     }
 
     /**
@@ -1606,12 +1778,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
         class HabitListViewHolder extends RecyclerView.ViewHolder {
+            private final View statusDot;
             private final TextView habitName;
             private final TextView recordCount;
             private final TextView checkStatus;
 
             HabitListViewHolder(@NonNull View itemView) {
                 super(itemView);
+                statusDot = itemView.findViewById(R.id.list_status_dot);
                 habitName = itemView.findViewById(R.id.list_habit_name);
                 recordCount = itemView.findViewById(R.id.list_habit_record_count);
                 checkStatus = itemView.findViewById(R.id.list_check_status);
@@ -1620,6 +1794,17 @@ public class MainActivity extends AppCompatActivity {
             void bind(Habit habit, int position) {
                 boolean checkedInToday = getTodayRecord(habit.id) != null;
                 String priorityHint = getPriorityHint(habit.id);
+
+                // 今日已打卡绿点，未打卡红点。
+                statusDot.setBackgroundResource(checkedInToday
+                        ? R.drawable.bg_dot_active
+                        : R.drawable.bg_dot_red);
+
+                // 长按列表项编辑活动。
+                itemView.setOnLongClickListener(v -> {
+                    openEditHabit(habit);
+                    return true;
+                });
 
                 habitName.setText(habit.name);
                 if (priorityHint.isEmpty()) {
@@ -1683,9 +1868,12 @@ public class MainActivity extends AppCompatActivity {
          * 缓存控件引用，并负责把 Habit 和 CheckInRecord 状态渲染到 UI 上。
          */
         class HabitViewHolder extends RecyclerView.ViewHolder {
+            private final View cardContent;
+            private final ImageView reminderButton;
             private final TextView habitName;
             private final TextView streakValue;
             private final TextView targetSummary;
+            private final TextView priorityHintChip;
             private final TextView todayDate;
             private final TextView checkInButton;
             private final View checkedActions;
@@ -1694,9 +1882,12 @@ public class MainActivity extends AppCompatActivity {
 
             HabitViewHolder(@NonNull View itemView) {
                 super(itemView);
+                cardContent = itemView.findViewById(R.id.habit_card_content);
+                reminderButton = itemView.findViewById(R.id.card_reminder_button);
                 habitName = itemView.findViewById(R.id.habit_name);
                 streakValue = itemView.findViewById(R.id.streak_value);
                 targetSummary = itemView.findViewById(R.id.target_summary);
+                priorityHintChip = itemView.findViewById(R.id.priority_hint_chip);
                 todayDate = itemView.findViewById(R.id.today_date);
                 checkInButton = itemView.findViewById(R.id.check_in_button);
                 checkedActions = itemView.findViewById(R.id.checked_actions);
@@ -1725,19 +1916,38 @@ public class MainActivity extends AppCompatActivity {
                 habitName.setText(habit.name);
                 streakValue.setText(String.valueOf(habit.recordNum));
                 streakValue.setTextColor(primaryColor);
-                String summary = getString(
-                        R.string.habit_target_summary,
-                        todayValue,
-                        habit.unit,
-                        habit.totalValue,
-                        habit.unit
-                );
-                if (!priorityHint.isEmpty()) {
-                    summary = summary + "\n" + priorityHint;
+                targetSummary.setText(buildCardStatsLine(todayValue, habit.totalValue, habit.unit));
+
+                if (priorityHint.isEmpty()) {
+                    priorityHintChip.setVisibility(View.GONE);
+                } else {
+                    priorityHintChip.setText(priorityHint);
+                    priorityHintChip.setVisibility(View.VISIBLE);
                 }
-                targetSummary.setText(summary);
+
                 todayDate.setText(getString(R.string.today_date_format, getTodayDateString()));
                 todayDate.setTextColor(primaryColor);
+
+                // 卡片边框：今日已打卡淡绿，未打卡淡红。
+                cardContent.setBackgroundResource(checkedInToday
+                        ? R.drawable.bg_main_habit_card_done
+                        : R.drawable.bg_main_habit_card_undone);
+
+                // 长按卡片编辑活动。
+                itemView.findViewById(R.id.card_body).setOnLongClickListener(v -> {
+                    openEditHabit(habit);
+                    return true;
+                });
+
+                // 每张卡片自带提醒入口，已设提醒时高亮。
+                if (habit.reminderEnabled) {
+                    reminderButton.setColorFilter(primaryColor);
+                    reminderButton.setAlpha(1f);
+                } else {
+                    reminderButton.clearColorFilter();
+                    reminderButton.setAlpha(0.5f);
+                }
+                reminderButton.setOnClickListener(v -> openReminderEditor(habit));
 
                 bindWeekDots(habit.id);
 
@@ -1752,11 +1962,22 @@ public class MainActivity extends AppCompatActivity {
 
             private void bindWeekDots(long habitId) {
                 List<CheckInRecord.RecordDate> weekDates = getCurrentWeekDates();
+                CheckInRecord.RecordDate today = CheckInRecord.RecordDate.today();
                 for (int i = 0; i < weekDots.length; i++) {
-                    boolean checked = hasRecordOnDate(habitId, weekDates.get(i));
-                    weekDots[i].setBackgroundResource(checked ? R.drawable.bg_circle_green : R.drawable.bg_circle_outline);
-                    weekDots[i].setText(checked ? "\u2713" : "");
-                    weekDots[i].setTextColor(getColor(R.color.white));
+                    CheckInRecord.RecordDate date = weekDates.get(i);
+                    boolean checked = hasRecordOnDate(habitId, date);
+                    if (checked) {
+                        weekDots[i].setBackgroundResource(R.drawable.bg_circle_green);
+                        weekDots[i].setText("\u2713");
+                        weekDots[i].setTextColor(getColor(R.color.white));
+                    } else if (date.isSameDay(today)) {
+                        // \u4eca\u5929\u8fd8\u6ca1\u6253\u5361\u65f6\u7528\u7ea2\u5708\u7a81\u51fa\u63d0\u9192\u3002
+                        weekDots[i].setBackgroundResource(R.drawable.bg_circle_red);
+                        weekDots[i].setText("");
+                    } else {
+                        weekDots[i].setBackgroundResource(R.drawable.bg_circle_outline);
+                        weekDots[i].setText("");
+                    }
                 }
             }
         }
