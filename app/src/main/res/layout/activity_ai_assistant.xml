@@ -16,9 +16,9 @@
         android:layout_marginTop="26dp"
         android:background="@drawable/bg_icon_button"
         android:gravity="center"
-        android:text="x"
+        android:text="←"
         android:textColor="@color/stellog_muted"
-        android:textSize="28sp"
+        android:textSize="26sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 

@@ -241,7 +241,7 @@
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:text="已收获"
-                            android:textColor="@color/stellog_muted"
+                            android:textColor="@color/stellog_primary"
                             android:textSize="18sp" />
 
                         <TextView

@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -227,6 +228,7 @@ public class AiAssistantActivity extends AppCompatActivity {
         }
 
         messageInput.setText("");
+        hideKeyboard();
         addUserMessage(userText);
         if (introSubtitle != null) {
             introSubtitle.setVisibility(View.GONE);
@@ -252,6 +254,14 @@ public class AiAssistantActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void hideKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null && messageInput != null) {
+            imm.hideSoftInputFromWindow(messageInput.getWindowToken(), 0);
+        }
+        messageInput.clearFocus();
     }
 
     private void scrollToBottom() {

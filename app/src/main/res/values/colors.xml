@@ -18,4 +18,5 @@
     <color name="stellog_border_done">#8FD3C0</color>
     <color name="stellog_border_undone">#E7B3A9</color>
     <color name="stellog_danger_soft">#FBEAE6</color>
+    <color name="stellog_pending">#BC5648</color>
 </resources>

@@ -1231,7 +1231,7 @@ public class MainActivity extends AppCompatActivity {
         statusText.setText(buildSelectedDateStatus(completed, record, habit.unit));
         statusText.setSingleLine(true);
         statusText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        statusText.setTextColor(getColor(completed ? R.color.stellog_primary : R.color.stellog_muted));
+        statusText.setTextColor(getColor(completed ? R.color.stellog_primary : R.color.stellog_pending));
         statusText.setTextSize(13);
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,

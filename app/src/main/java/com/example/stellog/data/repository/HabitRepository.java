@@ -533,7 +533,7 @@ public class HabitRepository {
     private String buildPriorityHint(int recentCheckInDays, int recentGapDays, int streakDays, long seed) {
         String[] pool;
         if (recentGapDays >= 4 && recentCheckInDays >= 2) {
-            pool = new String[]{"别断啦，回来继续", "稳住，今天补上", "差点中断，加油"};
+            pool = new String[]{"别断啦，回来继续", "稳住，今天补上", "别中断，加油！"};
         } else if (streakDays >= 3) {
             pool = new String[]{"连续坚持，很棒", "势头正好，保持", "你很棒，继续"};
         } else if (recentCheckInDays >= 5) {
